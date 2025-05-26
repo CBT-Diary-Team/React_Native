@@ -1,105 +1,154 @@
-// src/context/AuthContext.tsx
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import * as Keychain from 'react-native-keychain';
+import { BASIC_URL } from '../constants/api';
 
 export type User = {
-  id: string;
-  name: string;
-  // 필요하다면 email 등 다른 필드도 추가
+  userId: string;
+  nickname: string;
+  role: string;
+  emailVerified: boolean; // 이메일 인증 여부 추가
 };
 
 export type AuthContextType = {
   userToken: string | null;
-  user: User | null;          // userId, userName 보관
-  isLoading: boolean;
-  signIn: (token: string) => Promise<void>;
+  user: User | null;
+  // 앱 기동 시 토큰 확인 + 사용자 조회 전용 로딩
+  isBootstrapping: boolean;
+  // 로그인/로그아웃/리프레시 등 인증 액션 전용 로딩
+  isAuthLoading: boolean;
+  signIn: (userId: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
+  refreshUser: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextType>({
   userToken: null,
-  isLoading: true,
+  isBootstrapping: true,
+  isAuthLoading: false,
   user: null,
   signIn: async () => {},
   signOut: async () => {},
+  fetchWithAuth: async () => new Response(null, { status: 500 }),
+  refreshUser: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [userToken, setUserToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
-  // 앱 시작 시 Keychain에서 토큰 불러와 백엔드로 유효성 검증
+  // 공통 인증 요청 함수
+  const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
+    const token = userToken;
+    const makeRequest = async (t: string) =>
+      fetch(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          Authorization: `Bearer ${t}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+    let res = token ? await makeRequest(token) : new Response(null, { status: 401 });
+    if (res.status === 401) {
+      const refreshRes = await fetch(`https://${BASIC_URL}/auth/api/protected/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiredToken: token, provider: 'server' }),
+      });
+      if (refreshRes.ok) {
+        const { access_token } = await refreshRes.json();
+        await Keychain.setGenericPassword('authToken', access_token);
+        setUserToken(access_token);
+        res = await makeRequest(access_token);
+      } else {
+        await Keychain.resetGenericPassword();
+        setUserToken(null);
+        setUser(null);
+        return new Response(null, { status: 401 });
+      }
+    }
+    return res;
+  }, [userToken]);
+
+  // 로그인 함수
+  const signIn = useCallback(async (userId: string, password: string) => {
+    setIsAuthLoading(true);
+    try {
+      const res = await fetch(`https://${BASIC_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, password }),
+      });
+      if (res.ok) {
+        const { access_token, user } = await res.json();
+        await Keychain.setGenericPassword('authToken', access_token);
+        setUserToken(access_token);
+        setUser(user);
+      } else {
+        throw new Error(`Login failed: ${res.status}`);
+      }
+    } finally {
+      setIsAuthLoading(false);
+    }
+  }, []);
+
+  // 로그아웃 함수
+  const signOut = useCallback(async () => {
+    setIsAuthLoading(true);
+    try {
+      await fetchWithAuth(`https://${BASIC_URL}/api/auth/logout`, {
+        method: 'POST',
+      });
+      await Keychain.resetGenericPassword();
+      setUserToken(null);
+      setUser(null);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  }, [fetchWithAuth]);
+
+  // 앱 시작 시 자동 로그인 부트스트랩
   useEffect(() => {
-    (async () => {
+    const bootstrapAsync = async () => {
       try {
-        const creds = await Keychain.getGenericPassword();
-        if (creds) {
-          const token = creds.password;
-          // 토큰 유효성 검증
-          const res = await fetch('https://api.yoursite.com/auth/me', {
-            method: 'GET',
-            headers: { Authorization: `Bearer ${token}` },
-          });
+        const credentials = await Keychain.getGenericPassword();
+        if (credentials) {
+          setUserToken(credentials.password);
+          const res = await fetchWithAuth(`https://${BASIC_URL}/api/users/me`);
           if (res.ok) {
-            const { id, name } = await res.json() as User;
-            setUserToken(token);
-            setUser({ id, name });
-          } else {
-            // 유효하지 않으면 저장된 토큰 삭제
-            await Keychain.resetGenericPassword();
-            setUserToken(null);
-            setUser(null);
+            const { user } = await res.json();
+            setUser(user);
           }
         }
       } catch (e) {
-        console.warn('토큰 검증 또는 Keychain 읽기 실패', e);
-        setUserToken(null);
-        setUser(null);
+        console.warn('앱 부트스트랩 중 오류:', e);
       } finally {
-        setIsLoading(false);
+        setIsBootstrapping(false);
       }
-    })();
-  }, []);
+    };
+    bootstrapAsync();
+  }, [fetchWithAuth]);
 
-const signIn = async (token: string) => {
-  setIsLoading(true);
-  try {
-    await Keychain.setGenericPassword('authToken', token);
-    setUserToken(token);
-
-    // ← 여기서 한 번만 사용자 정보 조회
-    const res = await fetch('https://api.yoursite.com/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  const refreshUser = useCallback(async () => {
+    if (!userToken) return;
+    const res = await fetchWithAuth(`https://${BASIC_URL}/api/users/me`);
     if (res.ok) {
-      const { id, name } = (await res.json()) as User;
-      setUser({ id, name });
+      const { user } = await res.json();
+      setUser(user);
     }
-  } catch (e) {
-    console.warn(e);
-    setUser(null);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  }, [fetchWithAuth, userToken]);
 
-  const signOut = async () => {
-    setIsLoading(true);
-    try {
-      await Keychain.resetGenericPassword();
-      setUserToken(null);
-    } catch (e) {
-      console.warn('Keychain 삭제 실패', e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const contextValue = useMemo(
+    () => ({ userToken, user, isBootstrapping, isAuthLoading, signIn, signOut, fetchWithAuth, refreshUser }),
+    [userToken, user, isBootstrapping, isAuthLoading, signIn, signOut, fetchWithAuth, refreshUser]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{ userToken, user, isLoading, signIn, signOut }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

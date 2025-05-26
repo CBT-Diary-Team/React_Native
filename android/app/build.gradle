@@ -84,6 +84,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        manifestPlaceholders = [ 
+            appAuthRedirectScheme: "myapp"  // 원하는 URI 스킴으로 변경
+        ]
     }
     signingConfigs {
         debug {

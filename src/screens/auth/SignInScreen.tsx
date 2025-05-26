@@ -1,4 +1,4 @@
-// src/screens/auth/LoginScreen.tsx
+// src/screens/auth/SignInScreen.tsx
 import React, { useState, useContext } from 'react';
 import {
   View,
@@ -11,21 +11,18 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/AuthStack';
-import CryptoJS from 'crypto-js';
 import { AuthContext } from '../../context/AuthContext';
 
-type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
+// AuthStackParamList에 맞춰 'SignIn'으로 설정
+type Props = NativeStackScreenProps<AuthStackParamList, 'SignIn'>;
 
-const SECRET_KEY = 'your-secret-key'; // 절대 깃허브 등에 올라가면 안 됩니다!
-
-export default function LoginScreen({ navigation }: Props) {
+export default function SignInScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { signIn } = useContext(AuthContext);
+  const { signIn, isAuthLoading } = useContext(AuthContext);
 
   const handleLogin = async () => {
-    // 1) 입력 검증
+    // 입력 검증
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email) {
       return Alert.alert('에러', '이메일을 입력하세요');
@@ -40,42 +37,17 @@ export default function LoginScreen({ navigation }: Props) {
       return Alert.alert('에러', '비밀번호는 최소 6자 이상이어야 합니다');
     }
 
-    // 2) 암호화
-    const encryptedEmail = CryptoJS.AES.encrypt(email, SECRET_KEY).toString();
-    const hashedPassword = CryptoJS.SHA256(password).toString();
-
-    // 3) API 요청
-    setLoading(true);
     try {
-      const res = await fetch('https://api.yoursite.com/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: encryptedEmail,
-          password: hashedPassword,
-        }),
-      });
-      const json = await res.json();
-      setLoading(false);
-
-      if (res.ok) {
-        // Context에 토큰 저장 → RootNavigator가 AppStack으로 전환됩니다
-        await signIn(json.token);
-      } else {
-        Alert.alert('로그인 실패', json.message || '알 수 없는 오류가 발생했습니다');
-      }
+      // Context signIn 호출 (내부에서 API 요청, Keychain 저장 등 처리)
+      await signIn(email, password);
+      // RootNavigator가 자동으로 AppStack으로 전환합니다.
     } catch (error: any) {
-      setLoading(false);
-      Alert.alert('네트워크 오류', error.message);
+      Alert.alert('로그인 실패', error.message || '알 수 없는 오류가 발생했습니다');
     }
   };
 
-  const handleNaverLogin = () => {
-    Alert.alert('네이버 로그인', '아직 구현 안 됨 😅');
-  };
-
   const handleSignup = () => {
-    navigation.navigate('Signup');
+    navigation.navigate('SignUp');
   };
 
   return (
@@ -85,6 +57,7 @@ export default function LoginScreen({ navigation }: Props) {
       <TextInput
         style={styles.input}
         placeholder="이메일"
+        placeholderTextColor="#999"
         keyboardType="email-address"
         autoCapitalize="none"
         value={email}
@@ -94,6 +67,7 @@ export default function LoginScreen({ navigation }: Props) {
       <TextInput
         style={styles.input}
         placeholder="비밀번호"
+        placeholderTextColor="#999"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
@@ -102,27 +76,19 @@ export default function LoginScreen({ navigation }: Props) {
       <TouchableOpacity
         style={styles.button}
         onPress={handleLogin}
-        disabled={loading}
+        disabled={isAuthLoading}
       >
-        {loading ? (
+        {isAuthLoading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>이메일 로그인</Text>
+          <Text style={styles.buttonText}>로그인</Text>
         )}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.naverButton]}
-        onPress={handleNaverLogin}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>네이버 로그인</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.button, styles.signupButton]}
         onPress={handleSignup}
-        disabled={loading}
+        disabled={isAuthLoading}
       >
         <Text style={styles.buttonText}>회원가입</Text>
       </TouchableOpacity>
@@ -135,12 +101,14 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     justifyContent: 'center',
+    backgroundColor: '#fff',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 32,
     textAlign: 'center',
+    color: '#000',
   },
   input: {
     borderWidth: 1,
@@ -148,6 +116,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    color: '#000',
   },
   button: {
     backgroundColor: '#4A90E2',
@@ -155,9 +124,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
     alignItems: 'center',
-  },
-  naverButton: {
-    backgroundColor: '#2DB400',
   },
   signupButton: {
     backgroundColor: '#888',
