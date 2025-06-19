@@ -178,7 +178,7 @@ export default function MainScreen({ navigation }: Props) {
   const renderPostItem = ({ item }: { item: Post }) => (
     <TouchableOpacity
       style={styles.postItem}
-      onPress={() => navigation.navigate('View', { postId: item.id })}
+      onPress={() => navigation.navigate('View', { diaryId: item.id })}
     >
       <Text style={{ fontWeight: 'bold', marginBottom: 4 }}>{item.title}</Text>
       <Text style={{ color: '#777' }}>{item.date}</Text>

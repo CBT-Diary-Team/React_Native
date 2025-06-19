@@ -163,7 +163,7 @@ export default function WriteScreen({ route, navigation }: Props) {
 
       // “새 글 작성 모드”일 때: POST 요청
       const response = await fetchWithAuth(
-        `https://${BASIC_URL}/api/diaryposts`,
+        `https://${BASIC_URL}/api/diaries`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -182,8 +182,8 @@ export default function WriteScreen({ route, navigation }: Props) {
 
       // 성공 시, 백엔드가 리턴한 postId를 얻어서 분석 화면(또는 상세 보기)으로 이동
       const responseData = await response.json();
-      const newPostId = responseData.postId;
-      navigation.navigate('Analyze', { postId: newPostId });
+      const newPostId = responseData.id;
+      navigation.navigate('Analyze', { diaryId: newPostId });
     } catch (err: any) {
       console.warn('글 작성/수정 중 오류:', err);
       Alert.alert('오류', '네트워크 오류가 발생했습니다.');

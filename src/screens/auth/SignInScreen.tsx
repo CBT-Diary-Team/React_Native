@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/AuthStack';
@@ -17,30 +18,28 @@ import { AuthContext } from '../../context/AuthContext';
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignIn'>;
 
 export default function SignInScreen({ navigation }: Props) {
-  const [email, setEmail] = useState('');
+  const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const { signIn, isAuthLoading } = useContext(AuthContext);
 
   const handleLogin = async () => {
     // 입력 검증
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email) {
-      return Alert.alert('에러', '이메일을 입력하세요');
+    if (!userId) {
+      return Alert.alert('에러', '아이디를 입력하세요');
     }
-    if (!emailRegex.test(email)) {
-      return Alert.alert('에러', '유효한 이메일을 입력하세요');
+    if (userId.length < 4) {
+      return Alert.alert('에러', '아이디는 최소 4자 이상이어야 합니다');
     }
     if (!password) {
       return Alert.alert('에러', '비밀번호를 입력하세요');
     }
-    if (password.length < 6) {
-      return Alert.alert('에러', '비밀번호는 최소 6자 이상이어야 합니다');
+    if (password.length < 8) {
+      return Alert.alert('에러', '비밀번호는 최소 8자 이상이어야 합니다');
     }
 
     try {
       // Context signIn 호출 (내부에서 API 요청, Keychain 저장 등 처리)
-      await signIn(email, password);
-      // RootNavigator가 자동으로 AppStack으로 전환합니다.
+      await signIn(userId, password);
     } catch (error: any) {
       Alert.alert('로그인 실패', error.message || '알 수 없는 오류가 발생했습니다');
     }
@@ -52,38 +51,44 @@ export default function SignInScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>로그인</Text>
+      {/* 중앙 콘텐츠 */}
+      <View style={styles.centerContainer}>
+        <Image
+          source={require('../../../assets/images/logo.png')}
+          style={styles.logo}
+          resizeMode="cover"
+        />
 
-      <TextInput
-        style={styles.input}
-        placeholder="이메일"
-        placeholderTextColor="#999"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
-      />
+        <TextInput
+          style={styles.input}
+          placeholder="아이디"
+          placeholderTextColor="#999"
+          autoCapitalize="none"
+          value={userId}
+          onChangeText={setUserId}
+        />
 
-      <TextInput
-        style={styles.input}
-        placeholder="비밀번호"
-        placeholderTextColor="#999"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+        <TextInput
+          style={styles.input}
+          placeholder="비밀번호"
+          placeholderTextColor="#999"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleLogin}
-        disabled={isAuthLoading}
-      >
-        {isAuthLoading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>로그인</Text>
-        )}
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleLogin}
+          disabled={isAuthLoading}
+        >
+          {isAuthLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>로그인</Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity
         style={[styles.button, styles.signupButton]}
@@ -99,17 +104,24 @@ export default function SignInScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
     backgroundColor: '#fff',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 32,
-    textAlign: 'center',
-    color: '#000',
+
+  centerContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
+
+  logo: {
+    width: 180,
+    height: 90,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -118,16 +130,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     color: '#000',
   },
+
   button: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 15,
+    backgroundColor: '#00B8B0',
+    paddingVertical: 10,
     borderRadius: 8,
-    marginBottom: 12,
     alignItems: 'center',
+    marginBottom: 12,
   },
+
   signupButton: {
-    backgroundColor: '#888',
+    backgroundColor: '#C4B5FD',
   },
+
   buttonText: {
     color: '#fff',
     fontSize: 16,

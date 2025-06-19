@@ -27,7 +27,7 @@ interface PostData {
 }
 
 export default function ViewScreen({ route, navigation }: Props) {
-  const { postId } = route.params as { postId: string };
+  const { diaryId } = route.params as { diaryId: string };
   const { fetchWithAuth, user, isAuthLoading } = useContext(AuthContext);
 
   const [post, setPost] = useState<PostData | null>(null);
@@ -45,7 +45,7 @@ export default function ViewScreen({ route, navigation }: Props) {
 
       try {
         const res = await fetchWithAuth(
-          `https://${BASIC_URL}/api/diaryposts/${postId}`,
+          `https://${BASIC_URL}/api/diaryposts/${diaryId}`,
           { method: 'GET' }
         );
         if (!res.ok) {
@@ -72,11 +72,11 @@ export default function ViewScreen({ route, navigation }: Props) {
     return () => {
       isMounted = false;
     };
-  }, [postId, fetchWithAuth, user]);
+  }, [diaryId, fetchWithAuth, user]);
 
   // “수정하기” 버튼을 눌렀을 때: Write 화면으로 이동
   const handleEdit = () => {
-    navigation.navigate('Write', { postId });
+    navigation.navigate('Write', { diaryId });
   };
 
   // “AI 분석 보러가기” 또는 “분석하기” 버튼을 눌렀을 때: Analyze 화면으로 이동
@@ -108,7 +108,7 @@ export default function ViewScreen({ route, navigation }: Props) {
       }
 
       // 2) AI 분석 결과가 이미 있거나, 방금 분석이 끝났다면 결과 화면으로 이동
-      navigation.navigate('Analyze', { postId: post.id });
+      navigation.navigate('Analyze', { diaryId: post.id });
     } catch (e: any) {
       console.warn('AI 분석 요청 중 오류:', e);
       Alert.alert('오류', 'AI 분석 중에 문제가 발생했습니다.');
@@ -164,7 +164,7 @@ export default function ViewScreen({ route, navigation }: Props) {
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={[styles.button, styles.editButton]}
-            onPress={() => navigation.navigate('Write', { postId: post.id })}
+            onPress={() => navigation.navigate('Write', { diaryId: post.id })}
           >
             <Text style={styles.buttonText}>수정하기</Text>
           </TouchableOpacity>

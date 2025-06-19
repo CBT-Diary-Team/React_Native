@@ -36,7 +36,7 @@ interface AnalysisResult {
 }
 
 export default function AnalyzeScreen({ route }: Props) {
-  const { postId } = route.params;
+  const { diaryId } = route.params;
   const { fetchWithAuth, user } = useContext(AuthContext);
 
   // 로딩/에러 상태
@@ -65,7 +65,7 @@ export default function AnalyzeScreen({ route }: Props) {
 
       try {
         const res = await fetchWithAuth(
-          `https://${BASIC_URL}/api/diaries/${postId}/analysis`,
+          `https://${BASIC_URL}/api/diaries/${diaryId}/analysis`,
           { method: 'GET' }
         );
 
@@ -111,7 +111,7 @@ export default function AnalyzeScreen({ route }: Props) {
     return () => {
       isMounted = false;
     };
-  }, [postId, fetchWithAuth, user]);
+  }, [diaryId, fetchWithAuth, user]);
 
   // 로딩 중
   if (isLoading) {

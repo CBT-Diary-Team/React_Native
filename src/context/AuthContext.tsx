@@ -7,6 +7,8 @@ export type User = {
   nickname: string;
   role: string;
   emailVerified: boolean; // 이메일 인증 여부 추가
+  email: string;
+  provider: string;
 };
 
 export type AuthContextType = {
@@ -100,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     setIsAuthLoading(true);
     try {
-      await fetchWithAuth(`https://${BASIC_URL}/api/auth/logout`, {
+      await fetchWithAuth(`https://${BASIC_URL}/api/public/clean/userTokenCookie`, {
         method: 'POST',
       });
       await Keychain.resetGenericPassword();
@@ -153,3 +155,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
+

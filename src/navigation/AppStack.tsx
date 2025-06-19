@@ -8,9 +8,9 @@ import ViewScreen from '../screens/main/ViewScreen';
 
 export type AppStackParamList = {
   Main: undefined;
-  Write: { postId: string } | undefined;
-  Analyze: { postId: string }; // 분석 화면은 글 ID를 받아서 열도록 설계
-  View: { postId: string };
+  Write: { diaryId: string } | undefined;
+  Analyze: { diaryId: string }; // 분석 화면은 글 ID를 받아서 열도록 설계
+  View: { diaryId: string };
 };
 
 const Stack = createNativeStackNavigator<AppStackParamList>();

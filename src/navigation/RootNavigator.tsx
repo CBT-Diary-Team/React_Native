@@ -21,8 +21,7 @@ export default function RootNavigator() {
   return (
     <NavigationContainer>
       {/* 로그인 전 또는 이메일 인증 미완료 시 AuthStack, 모두 완료 시 AppStack */}
-      {/* {!user || !user.emailVerified ? <AuthStack /> : <AppStack />} */}
-      {<AppStack />}
+      {user && user.emailVerified ? <AppStack />:<AuthStack />}
     </NavigationContainer>
   );
 }

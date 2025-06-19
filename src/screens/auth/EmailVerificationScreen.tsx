@@ -1,5 +1,5 @@
 // src/screens/auth/EmailVerificationScreen.tsx
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,19 +8,57 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/AuthStack';
 import { AuthContext } from '../../context/AuthContext';
 import { BASIC_URL } from '../../constants/api';
 
-// AuthStackParamList에 맞춰 'VerifyEmail'으로 설정
 type Props = NativeStackScreenProps<AuthStackParamList, 'VerifyEmail'>;
 
 export default function EmailVerificationScreen({ navigation }: Props) {
+  const { refreshUser, fetchWithAuth, user } = useContext(AuthContext);
   const [code, setCode] = useState('');
-  const { refreshUser, fetchWithAuth } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [infoMessage, setInfoMessage] = useState('');
+
+  // Countdown timer for resend
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (resendTimer > 0) {
+      timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendTimer]);
+
+  const handleSendCode = async () => {
+    if (!user?.email) {
+      return Alert.alert('에러', '이메일 정보가 없습니다.');
+    }
+
+    setSending(true);
+    setInfoMessage('메일을 발송 중입니다…');
+    try {
+      const res = await fetch(`https://${BASIC_URL}/api/public/emailSend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || '이메일 발송 실패');
+
+      setInfoMessage('인증 코드가 이메일로 전송되었습니다.');
+      setResendTimer(60);
+    } catch (err: any) {
+      setInfoMessage('');
+      Alert.alert('오류', err.message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   const handleVerify = async () => {
     if (!code.trim()) {
@@ -30,22 +68,21 @@ export default function EmailVerificationScreen({ navigation }: Props) {
     setLoading(true);
     try {
       const res = await fetchWithAuth(
-        `https://${BASIC_URL}/api/auth/verify-email`,
+        `https://${BASIC_URL}/api/public/emailCheck`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: code.trim() }),
+          body: JSON.stringify({ email: user?.email, code: code.trim() }),
         }
       );
-
       if (!res.ok) {
         const { message } = await res.json();
         throw new Error(message || '인증 실패');
       }
 
-      // 이메일 인증 성공!
-      await refreshUser(); 
+      await refreshUser();
       Alert.alert('인증 성공', '이메일 인증이 완료되었습니다.');
+      navigation.navigate('SignIn');
     } catch (err: any) {
       Alert.alert('오류', err.message);
     } finally {
@@ -55,10 +92,32 @@ export default function EmailVerificationScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      <Image
+        source={require('../../../assets/images/logo.png')}
+        style={styles.logo}
+        resizeMode="cover"
+      />
       <Text style={styles.title}>이메일 인증</Text>
-      <Text style={styles.subtitle}>
-        이메일로 발송된 인증 코드를 입력해주세요.
-      </Text>
+      <Text style={styles.subtitle}>이메일로 발송된 인증 코드를 입력해주세요.</Text>
+
+      <TouchableOpacity
+        style={[
+          styles.sendCodeButton,
+          resendTimer > 0 && styles.sendDisabled,
+        ]}
+        onPress={handleSendCode}
+        disabled={sending || resendTimer > 0}
+      >
+        {sending ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>
+            {resendTimer > 0 ? `재전송 (${resendTimer}s)` : '인증 코드 발송'}
+          </Text>
+        )}
+      </TouchableOpacity>
+      {infoMessage ? <Text style={styles.infoText}>{infoMessage}</Text> : null}
+
       <TextInput
         style={styles.input}
         placeholder="인증 코드"
@@ -67,6 +126,7 @@ export default function EmailVerificationScreen({ navigation }: Props) {
         onChangeText={setCode}
         keyboardType="number-pad"
       />
+
       <TouchableOpacity
         style={styles.button}
         onPress={handleVerify}
@@ -101,6 +161,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     color: '#555',
   },
+  logo: {
+    width: 180,
+    height: 90,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -109,9 +175,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     color: '#000',
   },
+  sendCodeButton: {
+    backgroundColor: '#00B8B0',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  sendDisabled: {
+    backgroundColor: '#6C757D',
+  },
+  infoText: {
+    textAlign: 'center',
+    color: '#555',
+    marginVertical: 10,
+    fontSize: 14,
+  },
   button: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 15,
+    backgroundColor: '#6C757D',
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },

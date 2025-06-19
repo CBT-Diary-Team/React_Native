@@ -1,80 +1,176 @@
 // src/screens/auth/SignupScreen.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  Modal,
-  Pressable,
   Alert,
   ScrollView,
+  Image,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/AuthStack';
 import { BASIC_URL } from '../../constants/api';
+import debounce from 'lodash.debounce';
 
-// AuthStackParamList에 맞춰 'SignUp'으로 설정
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
 export default function SignupScreen({ navigation }: Props) {
-  const [email, setEmail] = useState('');
+  const [userId, setUserId] = useState('');
+  const [userIdError, setUserIdError] = useState('');
+  const [userIdAvailable, setUserIdAvailable] = useState<boolean | null>(null);
   const [password, setPassword] = useState('');
-  const [userName, setUserName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
   const [nickname, setNickname] = useState('');
-  const [modalVisible, setModalVisible] = useState(true);
+  const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(null);
   const [agreePersonal, setAgreePersonal] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
 
-  const isValidEmail = (e: string) => /^\S+@\S+\.\S+$/.test(e);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  // Debounced API checks
+  const debouncedCheckUserId = useRef(
+    debounce(async (value: string) => {
+      if (value.length < 4) {
+        setUserIdAvailable(null);
+        return;
+      }
+      try {
+        const res = await fetch(`${BASIC_URL}/api/public/check/userId/IsDuplicate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: value }),
+        });
+        const { isDuplicate } = await res.json();
+        setUserIdAvailable(!isDuplicate);
+      } catch {
+        // ignore
+      }
+    }, 300)
+  ).current;
+
+  const debouncedCheckEmail = useRef(
+    debounce(async (value: string) => {
+      if (!value) return;
+      try {
+        const res = await fetch(`${BASIC_URL}/api/public/check/email/IsDuplicate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: value }),
+        });
+        const { isDuplicate } = await res.json();
+        setEmailAvailable(!isDuplicate);
+      } catch {
+        // ignore
+      }
+    }, 300)
+  ).current;
+
+  const debouncedCheckNickname = useRef(
+    debounce(async (value: string) => {
+      if (!value) return;
+      try {
+        const res = await fetch(`${BASIC_URL}/api/public/check/nickname/IsDuplicate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nickname: value }),
+        });
+        const { isDuplicate } = await res.json();
+        setNicknameAvailable(!isDuplicate);
+      } catch {
+        // ignore
+      }
+    }, 300)
+  ).current;
+
+  const isValidEmailFormat = (e: string) => /^\S+@\S+\.\S+$/.test(e);
   const isValidPassword = (pw: string) => {
     if (pw.length < 8 || pw.length > 50) return false;
-    const typesMatched = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/].filter(rx => rx.test(pw));
-    if (typesMatched.length < 3) return false;
+    const types = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/];
+    if (types.filter(rx => rx.test(pw)).length < 3) return false;
     if (/(.)\1\1/.test(pw)) return false;
-    if (email && pw.includes(email)) return false;
+    if (userId && pw.includes(userId)) return false;
     return true;
   };
-  const isValidName = (n: string) => n.length >= 2 && n.length <= 20;
-  const isValidNickname = (n: string) => n.length >= 2 && n.length <= 15;
+
+  const handleUserIdChange = (text: string) => {
+    setUserId(text);
+    setUserIdError(
+      text.length > 0 && text.length < 4
+        ? '아이디는 4자 이상이어야 합니다.'
+        : ''
+    );
+    setUserIdAvailable(null);
+    debouncedCheckUserId(text);
+  };
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    setEmailAvailable(null);
+    if (text && !isValidEmailFormat(text)) {
+      setEmailError('올바른 이메일 형식을 입력해주세요.');
+    } else {
+      setEmailError('');
+      debouncedCheckEmail(text);
+    }
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    // 패스워드 유효성 검사
+    if (text && !isValidPassword(text)) {
+      setPasswordError('비밀번호는 8~50자, 영문/숫자/특수문자 중 3종류 이상이어야 합니다.');
+    } else if (confirmPassword && text !== confirmPassword) {
+      setPasswordError('비밀번호가 일치하지 않습니다.');
+    } else {
+      setPasswordError('');
+    }
+  };
+
+  const handleConfirmPasswordChange = (text: string) => {
+    setConfirmPassword(text);
+    // 확인용 패스워드 일치 여부만 검사
+    if (password && text !== password) {
+      setPasswordError('비밀번호가 일치하지 않습니다.');
+    } else {
+      setPasswordError('');
+    }
+  };
+
+  const handleNicknameChange = (text: string) => {
+    setNickname(text);
+    setNicknameAvailable(null);
+    debouncedCheckNickname(text);
+  };
 
   const handleSignup = async () => {
-    if (!isValidEmail(email)) {
-      Alert.alert('이메일 형식 오류', '유효한 이메일 주소를 입력해주세요.');
+    if (userIdAvailable !== true) {
+      Alert.alert('아이디 오류', '아이디 중복 확인을 해주세요.');
       return;
     }
-    if (!isValidPassword(password)) {
-      Alert.alert(
-        '비밀번호 오류',
-        '비밀번호는 8~50자, 영문 대소문자/숫자/특수문자 중 3종류 이상을 포함해야 합니다.'
-      );
+    if (emailAvailable !== true) {
+      Alert.alert('이메일 오류', '이메일 중복 확인을 해주세요.');
       return;
     }
-    if (!isValidName(userName)) {
-      Alert.alert('이름 오류', '이름은 2~20자 사이여야 합니다.');
-      return;
-    }
-    if (!isValidNickname(nickname)) {
-      Alert.alert('닉네임 오류', '닉네임은 2~15자 사이여야 합니다.');
-      return;
-    }
-    if (!agreePersonal || !agreeTerms) {
-      Alert.alert('약관 동의', '필수 약관에 모두 동의해주세요.');
+    if (nicknameAvailable !== true) {
+      Alert.alert('닉네임 오류', '닉네임 중복 확인을 해주세요.');
       return;
     }
 
     try {
-      const res = await fetch(`${BASIC_URL}/api/public/join`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          userPw: password,
-          userName,
-          nickname,
-        }),
-      });
+      const res = await fetch(
+        `${BASIC_URL}/api/public/join`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, userPw: password, email, nickname }),
+        }
+      );
       if (res.ok) {
         Alert.alert('성공', '회원가입이 완료되었습니다');
         navigation.replace('SignIn');
@@ -88,89 +184,88 @@ export default function SignupScreen({ navigation }: Props) {
   };
 
   const allFieldsValid =
-    isValidEmail(email) &&
+    !!userId &&
+    userIdAvailable === true &&
+    !!email &&
+    emailAvailable === true &&
     isValidPassword(password) &&
-    isValidName(userName) &&
-    isValidNickname(nickname) &&
+    password === confirmPassword &&
+    !!nickname &&
+    nicknameAvailable === true &&
     agreePersonal &&
     agreeTerms;
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>회원가입</Text>
-
+        <Image
+          source={require('../../../assets/images/logo.png')}
+          style={styles.logo}
+          resizeMode="cover"
+        />
         <TextInput
-          style={styles.input}
+          style={[styles.input, { marginBottom: 16 }]} 
+          placeholder="아이디"
+          placeholderTextColor="#999"
+          value={userId}
+          onChangeText={handleUserIdChange}
+        />
+        <TextInput
+          style={[styles.input, { marginBottom: 16 }]} 
           placeholder="이메일"
           placeholderTextColor="#999"
           keyboardType="email-address"
           autoCapitalize="none"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={handleEmailChange}
         />
+        {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
         <TextInput
+          style={[styles.input, { marginBottom: 16 }]} 
+          placeholder="닉네임"
+          placeholderTextColor="#999"
+          value={nickname}
+          onChangeText={handleNicknameChange}
+        />
+                <TextInput
           style={styles.input}
           placeholder="비밀번호"
           placeholderTextColor="#999"
           secureTextEntry
           value={password}
-          onChangeText={setPassword}
+          onChangeText={handlePasswordChange}
         />
         <TextInput
           style={styles.input}
-          placeholder="실명"
+          placeholder="비밀번호 확인"
           placeholderTextColor="#999"
-          value={userName}
-          onChangeText={setUserName}
+          secureTextEntry
+          value={confirmPassword}
+          onChangeText={handleConfirmPasswordChange}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="닉네임"
-          placeholderTextColor="#999"
-          value={nickname}
-          onChangeText={setNickname}
-        />
-
-        <TouchableOpacity
-          style={[styles.button, { opacity: allFieldsValid ? 1 : 0.5 }]}
-          onPress={handleSignup}
-          disabled={!allFieldsValid}
-        >
-          <Text style={styles.buttonText}>회원가입</Text>
-        </TouchableOpacity>
+        {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
       </ScrollView>
 
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>약관 동의</Text>
-            <ScrollView style={styles.scroll}>
-              <TouchableOpacity
-                style={styles.agreeRow}
-                onPress={() => setAgreePersonal(!agreePersonal)}
-              >
-                <Text style={styles.checkbox}>{agreePersonal ? '✅' : '⬜'}</Text>
-                <Text style={styles.agreeText}>[필수] 개인정보 수집 및 이용</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.agreeRow}
-                onPress={() => setAgreeTerms(!agreeTerms)}
-              >
-                <Text style={styles.checkbox}>{agreeTerms ? '✅' : '⬜'}</Text>
-                <Text style={styles.agreeText}>[필수] 서비스 이용 약관</Text>
-              </TouchableOpacity>
-            </ScrollView>
-            <Pressable
-              style={[styles.closeButton, { opacity: agreePersonal && agreeTerms ? 1 : 0.3 }]}
-              onPress={() => agreePersonal && agreeTerms && setModalVisible(false)}
-              disabled={!(agreePersonal && agreeTerms)}
-            >
-              <Text style={styles.closeButtonText}>동의하고 닫기</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <View style={styles.agreeContainer}>
+        <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreePersonal(!agreePersonal)}>
+          <Text style={styles.checkbox}>{agreePersonal ? '✅' : '⬜'}</Text>
+          <Text style={styles.agreeText}>[필수] 개인정보 수집 및 이용</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+        style={[styles.agreeRow, {marginBottom: 4}]}
+         onPress={() => setAgreeTerms(!agreeTerms)}>
+          <Text style={styles.checkbox}>{agreeTerms ? '✅' : '⬜'}</Text>
+          <Text style={styles.agreeText}>[필수] 서비스 이용 약관</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        style={[styles.button, { opacity: allFieldsValid ? 1 : 0.5 }]}
+        onPress={handleSignup}
+        disabled={!allFieldsValid}
+      >
+        <Text style={styles.buttonText}>회원가입</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -180,64 +275,73 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+
   centerBox: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 20,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 24,
-    textAlign: 'center',
+
+  logo: {
+    width: 180,
+    height: 90,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
+
   input: {
     width: '90%',
     borderWidth: 1,
     borderColor: '#ccc',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 12,
-    color: '#000'
+    marginBottom: 8,
+    color: '#000',
   },
+
+  errorText: {
+    width: '90%',
+    color: 'red',
+    marginBottom: 8,
+    marginLeft: '5%',
+  },
+
+  agreeContainer: {
+    width: '90%',
+    paddingHorizontal: '5%',
+    marginBottom: 20,
+  },
+
+  agreeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  checkbox: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+
+  agreeText: {
+    fontSize: 16,
+    color: '#333',
+  },
+
   button: {
     width: '90%',
-    backgroundColor: '#4A90E2',
-    paddingVertical: 15,
+    alignSelf: 'center',
+    backgroundColor: '#C4B5FD',
+    paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 8,
+    marginBottom: 52,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
-  modalBox: {
-    width: '90%',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 24,
-    elevation: 4,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  scroll: { maxHeight: 200, marginBottom: 20 },
-  agreeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  checkbox: { fontSize: 20, marginRight: 8 },
-  agreeText: { fontSize: 16, color: '#333' },
-  closeButton: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  closeButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
