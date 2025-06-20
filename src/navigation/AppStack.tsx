@@ -17,9 +17,7 @@ const Stack = createNativeStackNavigator<AppStackParamList>();
 
 export default function AppStack() {
   return (
-    <Stack.Navigator 
-    initialRouteName="Analyze"
-    screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Main" component={MainScreen} />
       <Stack.Screen name="Write" component={WriteScreen} />
       <Stack.Screen name="View" component={ViewScreen} />
