@@ -11,6 +11,7 @@ import {
   Text,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import DateTimePicker, {
   DateTimePickerEvent,
@@ -208,9 +209,12 @@ export default function WriteScreen({ route, navigation }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.inputContainer}>
-        <Text style={styles.title}>
-          {postId ? '일기 수정하기' : '새 일기 작성하기'}
-        </Text>
+        <Image
+          source={require('../../../assets/images/logo.png')}
+          style={styles.logo}
+          resizeMode="cover"
+        />
+
 
         {/* 날짜 선택 필드 */}
         <TouchableOpacity onPress={onPressDate} style={styles.dateWrapper}>
@@ -261,7 +265,7 @@ export default function WriteScreen({ route, navigation }: Props) {
           disabled={isLoading}
         >
           <Text style={styles.buttonText}>
-            {postId ? '수정 완료' : '작성 완료'}
+            {postId ? '수정 완료' : '새 일기 작성하기'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -304,7 +308,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#4A90E2',
+    borderColor: '#00B8B0',
     paddingHorizontal: 12,
     fontSize: 16,
     color: '#333',
@@ -318,7 +322,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#4A90E2',
+    borderColor: '#00B8B0',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -346,7 +350,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F4F8',
   },
   button: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#00B8B0',
     height: 50,
     borderRadius: 25,
     alignItems: 'center',
@@ -356,7 +360,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
-    marginBottom: 20,
+    marginBottom: 50,
   },
   buttonDisabled: {
     backgroundColor: '#9CCFFF',
@@ -365,5 +369,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  logo: {
+    width: 180,
+    height: 90,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
 });

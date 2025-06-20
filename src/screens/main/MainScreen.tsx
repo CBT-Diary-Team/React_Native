@@ -9,6 +9,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Keyboard,
+  Image,
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -187,7 +188,11 @@ export default function MainScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>CBT Diary</Text>
+      <Image
+        source={require('../../../assets/images/logo.png')}
+        style={styles.logo}
+        resizeMode="cover"
+      />
 
       {/* 검색창 */}
       <TextInput
@@ -273,6 +278,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
+  logo: {
+    width: 180,
+    height: 90,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+
   searchInput: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -338,7 +350,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#4a90e2',
+    backgroundColor: '#00B8B0',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 6,

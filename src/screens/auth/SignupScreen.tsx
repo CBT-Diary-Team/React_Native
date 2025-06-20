@@ -210,6 +210,7 @@ export default function SignupScreen({ navigation }: Props) {
           value={userId}
           onChangeText={handleUserIdChange}
         />
+        {userIdError ? <Text style={styles.errorText}>{userIdError}</Text> : null}
         <TextInput
           style={[styles.input, { marginBottom: 16 }]} 
           placeholder="이메일"
