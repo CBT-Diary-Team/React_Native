@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Keyboard,
   Image,
+  Alert,
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -30,10 +31,17 @@ function toQueryString(obj: Record<string, any>): string {
 export type Props = NativeStackScreenProps<AppStackParamList, 'Main'>;
 type Post = { id: string; title: string; date: string };
 
-interface PostData {
-  dates: string[];
+interface DairyData {
+  status: string;
+  message: string;
   diaries: Post[];
   totalCount: number;
+}
+
+interface DateData {
+  status: string;
+  message: string;
+  dates: string[];
 }
 
 export default function MainScreen({ navigation }: Props) {
@@ -58,20 +66,48 @@ export default function MainScreen({ navigation }: Props) {
     const loadDates = async () => {
       if (!user) return;
       try {
-        // 페이지/사이즈 값은 “한 달치 날짜를 전부 가져온다”고 가정.
-        // 상황에 따라 직접 startDate/endDate 파라미터를 추가할 수도 있음
+        // 1. 오늘 기준 YYYY-MM 생성
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const payload: Record<string, any> = {
+          "month":`${year}-${month}`
+        };
+        const qs = toQueryString(payload);
+        // 2. backend: GET /api/diaryposts/calendar?month=YYYY-MM
+        const res = await fetchWithAuth(
+          `${BASIC_URL}/api/diaryposts/calendar?month=${qs}`
+        );
+        // 3. JSON 파싱
+        const calendar_json:DateData = await res.json() 
+        // 4. JSON의 status로 성공/실패 분기
+        if (calendar_json.status !== 'success' || !calendar_json.dates) {
+          Alert.alert('dlf 조회 실패', calendar_json.message);
+          return;
+        }
+        // 5. 정상 처리
+        setAllDates(calendar_json.dates);
+      } catch (e: any) {
+        // 네트워크 오류 등 예외 시 Alert 띄우기
+        Alert.alert('달력 조회 중 오류', e.message || '알 수 없는 오류가 발생했습니다.');
+      }
+      try {
         const payload: Record<string, any> = {
           "page":0,
           "size":10,
           "sort":"createdAt,desc", 
-          searchText,
         };
         const qs = toQueryString(payload);
-        const res = await fetchWithAuth(`https://${BASIC_URL}/api/diaries${qs}`)
-        const data: PostData = await res.json();
-        setAllDates(data.dates);
-      } catch (e) {
-        console.warn('달력 용 날짜 조회 오류:', e);
+        const res = await fetchWithAuth(`${BASIC_URL}/api/diaries${qs}`)
+        const dairy_json: DairyData = await res.json();
+        if (dairy_json.status !== 'success' || !dairy_json.diaries) {
+          Alert.alert('일기 조회 실패', dairy_json.message);
+          return;
+        }
+        setFilteredPosts(dairy_json.diaries);
+        setTotalCount(dairy_json.totalCount);
+      } catch (e: any) {
+        Alert.alert('일기 조회 중 오류', e.message || '알 수 없는 오류가 발생했습니다.');
       }
     };
     loadDates();
@@ -81,23 +117,23 @@ export default function MainScreen({ navigation }: Props) {
   const loadAllOrSearch = async (page: number) => {
     if (!user) return;
     try {
-      const payload: Record<string, any> = {  
-        page, 
+      const payload: Record<string, any> = {
+        "q":searchText,
+        "page":page,
         "size":10,
         "sort":"createdAt,desc", 
-        searchText,
       };
       const qs = toQueryString(payload);
-      const res = await fetchWithAuth(`https://${BASIC_URL}/api/diaries${qs}`)
-      if (!res.ok) {
-        console.warn(`서버 에러: ${res.status}`);
+      const res = await fetchWithAuth(`${BASIC_URL}/api/diaries${qs}`)
+      const dairy_json: DairyData = await res.json();
+      if (dairy_json.status !== 'success' || !dairy_json.diaries) {
+        Alert.alert('일기 조회 실패', dairy_json.message);
         return;
       }
-      const data: PostData = await res.json();
-      setFilteredPosts(data.diaries);
-      setTotalCount(data.totalCount);
-    } catch (e) {
-      console.warn('전체/검색 일기 조회 오류:', e);
+      setFilteredPosts(dairy_json.diaries);
+      setTotalCount(dairy_json.totalCount);
+    } catch (e: any) {
+      Alert.alert('일기 조회 중 오류', e.message || '알 수 없는 오류가 발생했습니다.');
     }
   };
 
@@ -105,33 +141,31 @@ export default function MainScreen({ navigation }: Props) {
   const loadByDate = async (date: string, page: number) => {
     if (!user) return;
     try {
-      const payload: Record<string, any> = {  
-        page, 
+      const payload: Record<string, any> = {
+        date,
+        "page":page,
         "size":10,
-        "sort":"createdAt,desc",
-        "startDate":date,
-        "endDate":date,
-        searchText,
+        "sort":"createdAt,desc", 
       };
       const qs = toQueryString(payload);
-      const res = await fetchWithAuth(`https://${BASIC_URL}/api/diaries${qs}`)
-      if (!res.ok) {
-        console.warn(`서버 에러: ${res.status}`);
+      const res = await fetchWithAuth(`${BASIC_URL}/api/diaries${qs}`)
+      const dairy_json: DairyData = await res.json();
+      if (dairy_json.status !== 'success' || !dairy_json.diaries) {
+        Alert.alert('일기 조회 실패', dairy_json.message);
         return;
       }
-      const data: PostData = await res.json();
-      setFilteredPosts(data.diaries);
-      setTotalCount(data.totalCount);
-    } catch (e) {
-      console.warn('전체/검색 일기 조회 오류:', e);
+      setFilteredPosts(dairy_json.diaries);
+      setTotalCount(dairy_json.totalCount);
+    } catch (e: any) {
+      Alert.alert('일기 조회 중 오류', e.message || '알 수 없는 오류가 발생했습니다.');
     }
   };
 
   /** 초기 로드: 전체(첫 페이지) */
   useEffect(() => {
     setSelectedDate(null);
-    loadAllOrSearch(0);
     setCurrentPage(0);
+    loadAllOrSearch(0);
   }, [user]);
 
   /** 페이지 변경 시 로직: 날짜 선택 모드 vs 검색/전체 모드 분기 */

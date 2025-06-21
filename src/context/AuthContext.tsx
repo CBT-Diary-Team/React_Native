@@ -1,14 +1,12 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import * as Keychain from 'react-native-keychain';
 import { BASIC_URL } from '../constants/api';
-
+import { Alert } from 'react-native';
 export type User = {
-  userId: string;
+  loginId: string;
   nickname: string;
-  role: string;
   emailVerified: boolean; // 이메일 인증 여부 추가
   email: string;
-  provider: string;
 };
 
 export type AuthContextType = {
@@ -18,7 +16,7 @@ export type AuthContextType = {
   isBootstrapping: boolean;
   // 로그인/로그아웃/리프레시 등 인증 액션 전용 로딩
   isAuthLoading: boolean;
-  signIn: (userId: string, password: string) => Promise<void>;
+  signIn: (loginId: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
   refreshUser: () => Promise<void>;
@@ -56,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let res = token ? await makeRequest(token) : new Response(null, { status: 401 });
     if (res.status === 401) {
-      const refreshRes = await fetch(`https://${BASIC_URL}/auth/api/protected/refresh`, {
+      const refreshRes = await fetch(`${BASIC_URL}/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expiredToken: token, provider: 'server' }),
@@ -77,41 +75,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [userToken]);
 
   // 로그인 함수
-  const signIn = useCallback(async (userId: string, password: string) => {
+  const signIn = useCallback(async (loginId: string, password: string) => {
     setIsAuthLoading(true);
     try {
-      const res = await fetch(`https://${BASIC_URL}/api/auth/login`, {
+      const res = await fetch(`${BASIC_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, password }),
+        body: JSON.stringify({ loginId, password }),
       });
-      if (res.ok) {
-        const { access_token, user } = await res.json();
-        await Keychain.setGenericPassword('authToken', access_token);
-        setUserToken(access_token);
-        setUser(user);
+      const json = (await res.json()) as {
+        status: string;
+        message: string;
+        data?: {
+          access_token: string;
+          user: User;
+        };
+      };
+      if (json.status === 'success' && json.data) {
+        // 3) 토큰 저장 & 상태 업데이트
+        await Keychain.setGenericPassword('authToken', json.data.access_token);
+        setUserToken(json.data.access_token);
+        setUser(json.data.user);
       } else {
-        throw new Error(`Login failed: ${res.status}`);
+        // 실패 메시지 Alert
+        Alert.alert('로그인 실패', json.message || '로그인에 실패했습니다');
       }
+    } catch (e: any) {
+      // 네트워크 또는 예외 처리
+      Alert.alert('오류', e.message || '로그인 중 오류가 발생했습니다.');
     } finally {
       setIsAuthLoading(false);
     }
-  }, []);
+  },
+  []
+);
 
   // 로그아웃 함수
   const signOut = useCallback(async () => {
     setIsAuthLoading(true);
     try {
-      await fetchWithAuth(`https://${BASIC_URL}/api/public/clean/userTokenCookie`, {
-        method: 'POST',
-      });
-      await Keychain.resetGenericPassword();
-      setUserToken(null);
-      setUser(null);
-    } finally {
-      setIsAuthLoading(false);
-    }
-  }, [fetchWithAuth]);
+    // Keychain 에 저장된 토큰 완전 삭제
+    await Keychain.resetGenericPassword();
+    // 앱 상태 클리어
+    setUserToken(null);
+    setUser(null);
+  } finally {
+    // 언제나 로딩 해제
+    setIsAuthLoading(false);
+  }
+  }, []);
 
   // 앱 시작 시 자동 로그인 부트스트랩
   useEffect(() => {

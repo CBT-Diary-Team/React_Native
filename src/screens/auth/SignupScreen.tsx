@@ -17,10 +17,17 @@ import debounce from 'lodash.debounce';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
+interface Res {
+  status: string;
+  message: string;
+  data: boolean;
+  timestamp: string;
+}
+
 export default function SignupScreen({ navigation }: Props) {
-  const [userId, setUserId] = useState('');
-  const [userIdError, setUserIdError] = useState('');
-  const [userIdAvailable, setUserIdAvailable] = useState<boolean | null>(null);
+  const [loginId, setLoginId] = useState('');
+  
+  const [loginIdAvailable, setLoginIdAvailable] = useState<boolean | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
@@ -30,43 +37,70 @@ export default function SignupScreen({ navigation }: Props) {
   const [agreePersonal, setAgreePersonal] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
 
+  const [loginIdError, setLoginIdError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [nicknameError, setNicknameError] = useState('');
+
+  const isLoginIdTooShort = (loginId: string): boolean =>
+    loginId.length > 0 && loginId.length < 4;
+
+  const isValidEmailFormat = (email: string): boolean =>
+    /^\S+@\S+\.\S+$/.test(email);
+
+  const isValidPassword = (
+    password: string,
+    loginId: string // 비밀번호에 ID 포함 검사용
+  ): boolean => {
+    if (password.length < 8 || password.length > 50) return false;
+    const patterns = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/];
+    if (patterns.filter(rx => rx.test(password)).length < 3) return false;
+    if (/(.)\1\1/.test(password)) return false;
+    if (loginId && password.includes(loginId)) return false;
+    return true;
+  };
 
   // Debounced API checks
-  const debouncedCheckUserId = useRef(
+  const debouncedCheckLoginId = useRef(
     debounce(async (value: string) => {
-      if (value.length < 4) {
-        setUserIdAvailable(null);
-        return;
-      }
       try {
-        const res = await fetch(`${BASIC_URL}/api/public/check/userId/IsDuplicate`, {
+        const res = await fetch(`${BASIC_URL}/api/public/check/loginId/IsDuplicate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: value }),
+          body: JSON.stringify({ loginId: value }),
         });
-        const { isDuplicate } = await res.json();
-        setUserIdAvailable(!isDuplicate);
-      } catch {
-        // ignore
+        const res_json:Res = await res.json();
+        setLoginIdAvailable(res_json.data);
+        if(!loginIdAvailable){
+          setLoginIdError(`${res_json.message}`)
+        } else {
+          setLoginIdError("")
+        }
+      } catch (e: any) {
+        setLoginIdAvailable(null)
+        setLoginIdError(e.message || '알 수 없는 오류가 발생했습니다.');
       }
     }, 300)
   ).current;
 
   const debouncedCheckEmail = useRef(
     debounce(async (value: string) => {
-      if (!value) return;
       try {
         const res = await fetch(`${BASIC_URL}/api/public/check/email/IsDuplicate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: value }),
         });
-        const { isDuplicate } = await res.json();
-        setEmailAvailable(!isDuplicate);
-      } catch {
-        // ignore
+        const res_json:Res = await res.json();
+        setEmailAvailable(res_json.data);
+        if(!emailAvailable){
+          setEmailError(`${res_json.message}`)
+        } else {
+          setEmailError("")
+        }
+      } catch (e: any) {
+        setEmailAvailable(null)
+        setEmailError(e.message || '알 수 없는 오류가 발생했습니다.');
       }
     }, 300)
   ).current;
@@ -80,33 +114,31 @@ export default function SignupScreen({ navigation }: Props) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nickname: value }),
         });
-        const { isDuplicate } = await res.json();
-        setNicknameAvailable(!isDuplicate);
-      } catch {
-        // ignore
+        const res_json:Res = await res.json();
+        setNicknameAvailable(res_json.data);
+        if(!emailAvailable){
+          setNicknameError(`${res_json.message}`)
+        } else {
+          setNicknameError("")
+        }
+      } catch (e: any) {
+        setNicknameAvailable(null)
+        setNicknameError(e.message || '알 수 없는 오류가 발생했습니다.');
       }
     }, 300)
   ).current;
 
-  const isValidEmailFormat = (e: string) => /^\S+@\S+\.\S+$/.test(e);
-  const isValidPassword = (pw: string) => {
-    if (pw.length < 8 || pw.length > 50) return false;
-    const types = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/];
-    if (types.filter(rx => rx.test(pw)).length < 3) return false;
-    if (/(.)\1\1/.test(pw)) return false;
-    if (userId && pw.includes(userId)) return false;
-    return true;
-  };
 
-  const handleUserIdChange = (text: string) => {
-    setUserId(text);
-    setUserIdError(
-      text.length > 0 && text.length < 4
-        ? '아이디는 4자 이상이어야 합니다.'
-        : ''
-    );
-    setUserIdAvailable(null);
-    debouncedCheckUserId(text);
+
+  const handleLoginIdChange = (text: string) => {
+    setLoginId(text);
+    setLoginIdAvailable(null);
+    if (text&&isLoginIdTooShort(text)) {
+      setLoginIdError('아이디는 4자 이상이어야 합니다.');
+    } else {
+      setLoginIdError('');
+      debouncedCheckLoginId(text);
+    }
   };
 
   const handleEmailChange = (text: string) => {
@@ -123,7 +155,7 @@ export default function SignupScreen({ navigation }: Props) {
   const handlePasswordChange = (text: string) => {
     setPassword(text);
     // 패스워드 유효성 검사
-    if (text && !isValidPassword(text)) {
+    if (text && !isValidPassword(text, loginId)) {
       setPasswordError('비밀번호는 8~50자, 영문/숫자/특수문자 중 3종류 이상이어야 합니다.');
     } else if (confirmPassword && text !== confirmPassword) {
       setPasswordError('비밀번호가 일치하지 않습니다.');
@@ -149,34 +181,25 @@ export default function SignupScreen({ navigation }: Props) {
   };
 
   const handleSignup = async () => {
-    if (userIdAvailable !== true) {
-      Alert.alert('아이디 오류', '아이디 중복 확인을 해주세요.');
-      return;
-    }
-    if (emailAvailable !== true) {
-      Alert.alert('이메일 오류', '이메일 중복 확인을 해주세요.');
-      return;
-    }
-    if (nicknameAvailable !== true) {
-      Alert.alert('닉네임 오류', '닉네임 중복 확인을 해주세요.');
-      return;
-    }
-
     try {
       const res = await fetch(
         `${BASIC_URL}/api/public/join`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, userPw: password, email, nickname }),
+          body: JSON.stringify({ loginId, userPw: password, email, nickname }),
         }
       );
-      if (res.ok) {
-        Alert.alert('성공', '회원가입이 완료되었습니다');
-        navigation.replace('SignIn');
+      const json = await res.json() as { status: string; message: string };
+      if (json.status === 'success') {
+        Alert.alert(
+          '성공',
+          json.message,
+          [{ text: '확인', onPress: () => navigation.replace('SignIn') }],
+          { cancelable: false }
+        );
       } else {
-        const { message } = await res.json();
-        Alert.alert('실패', message || '회원가입에 실패했습니다');
+        Alert.alert('실패', json.message || '회원가입에 실패했습니다');
       }
     } catch {
       Alert.alert('오류', '네트워크 오류가 발생했습니다');
@@ -184,11 +207,11 @@ export default function SignupScreen({ navigation }: Props) {
   };
 
   const allFieldsValid =
-    !!userId &&
-    userIdAvailable === true &&
+    !!loginId &&
+    loginIdAvailable === true &&
     !!email &&
     emailAvailable === true &&
-    isValidPassword(password) &&
+    isValidPassword(password, loginId) &&
     password === confirmPassword &&
     !!nickname &&
     nicknameAvailable === true &&
@@ -207,10 +230,10 @@ export default function SignupScreen({ navigation }: Props) {
           style={[styles.input, { marginBottom: 16 }]} 
           placeholder="아이디"
           placeholderTextColor="#999"
-          value={userId}
-          onChangeText={handleUserIdChange}
+          value={loginId}
+          onChangeText={handleLoginIdChange}
         />
-        {userIdError ? <Text style={styles.errorText}>{userIdError}</Text> : null}
+        {loginIdError ? <Text style={styles.errorText}>{loginIdError}</Text> : null}
         <TextInput
           style={[styles.input, { marginBottom: 16 }]} 
           placeholder="이메일"

@@ -45,7 +45,7 @@ export default function ViewScreen({ route, navigation }: Props) {
 
       try {
         const res = await fetchWithAuth(
-          `https://${BASIC_URL}/api/diaryposts/${diaryId}`,
+          `${BASIC_URL}/api/diaryposts/${diaryId}`,
           { method: 'GET' }
         );
         if (!res.ok) {
@@ -91,7 +91,7 @@ export default function ViewScreen({ route, navigation }: Props) {
       if (!post.aiResponse) {
         // /api/diaries/{postId}/analysis 형식에 맞춰서 호출
         const res = await fetchWithAuth(
-          `https://${BASIC_URL}/api/diaries/${post.id}/analysis`,
+          `${BASIC_URL}/api/diaries/${post.id}/analysis`,
           { method: 'POST' } // 만약 GET이 아니라 POST여야 한다면 POST로 바꿔주세요
         );
 

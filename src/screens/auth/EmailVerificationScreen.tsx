@@ -42,19 +42,31 @@ export default function EmailVerificationScreen({ navigation }: Props) {
     setSending(true);
     setInfoMessage('메일을 발송 중입니다…');
     try {
-      const res = await fetch(`https://${BASIC_URL}/api/public/emailSend`, {
+      const res = await fetch(`${BASIC_URL}/api/public/emailSend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || '이메일 발송 실패');
-
-      setInfoMessage('인증 코드가 이메일로 전송되었습니다.');
-      setResendTimer(60);
+      const json = await res.json() as {
+        status: 'success' | 'error';
+        message: string;
+        data: { message?: string; title?: string; code?: string } | null;
+      };
+      if (json.status === 'success' && json.data?.message) {
+        // 성공: data.message 로 UI 업데이트
+        setInfoMessage(json.data.message);
+        setResendTimer(60);
+        Alert.alert('알림', json.data.message);
+      } else {
+        // 실패: error 메시지 (data.title 우선, 없으면 message)
+        const errMsg = json.data?.title || json.message || '이메일 발송에 실패했습니다.';
+        setInfoMessage('');
+        Alert.alert('실패', errMsg);
+      }
     } catch (err: any) {
+      // 네트워크/예외
       setInfoMessage('');
-      Alert.alert('오류', err.message);
+      Alert.alert('오류', err.message || '네트워크 오류가 발생했습니다.');
     } finally {
       setSending(false);
     }
@@ -68,13 +80,21 @@ export default function EmailVerificationScreen({ navigation }: Props) {
     setLoading(true);
     try {
       const res = await fetchWithAuth(
-        `https://${BASIC_URL}/api/public/emailCheck`,
+        `${BASIC_URL}/api/public/emailCheck`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: user?.email, code: code.trim() }),
         }
       );
+      const json = (await res.json()) as {
+        status: 'success' | 'error';
+        message: string;
+        data: {
+          message?: string;
+          title?: string;
+        } | null;
+      };
       if (!res.ok) {
         const { message } = await res.json();
         throw new Error(message || '인증 실패');

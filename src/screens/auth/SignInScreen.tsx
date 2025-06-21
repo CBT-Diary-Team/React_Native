@@ -18,16 +18,16 @@ import { AuthContext } from '../../context/AuthContext';
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignIn'>;
 
 export default function SignInScreen({ navigation }: Props) {
-  const [userId, setUserId] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const { signIn, isAuthLoading } = useContext(AuthContext);
 
   const handleLogin = async () => {
     // 입력 검증
-    if (!userId) {
+    if (!loginId) {
       return Alert.alert('에러', '아이디를 입력하세요');
     }
-    if (userId.length < 4) {
+    if (loginId.length < 4) {
       return Alert.alert('에러', '아이디는 최소 4자 이상이어야 합니다');
     }
     if (!password) {
@@ -39,7 +39,7 @@ export default function SignInScreen({ navigation }: Props) {
 
     try {
       // Context signIn 호출 (내부에서 API 요청, Keychain 저장 등 처리)
-      await signIn(userId, password);
+      await signIn(loginId, password);
     } catch (error: any) {
       Alert.alert('로그인 실패', error.message || '알 수 없는 오류가 발생했습니다');
     }
@@ -64,8 +64,8 @@ export default function SignInScreen({ navigation }: Props) {
           placeholder="아이디"
           placeholderTextColor="#999"
           autoCapitalize="none"
-          value={userId}
-          onChangeText={setUserId}
+          value={loginId}
+          onChangeText={setLoginId}
         />
 
         <TextInput

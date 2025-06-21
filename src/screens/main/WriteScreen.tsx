@@ -55,7 +55,7 @@ export default function WriteScreen({ route, navigation }: Props) {
       setIsLoading(true);
       try {
         const res = await fetchWithAuth(
-          `https://${BASIC_URL}/api/diaryposts/${postId}`,
+          `${BASIC_URL}/api/diaryposts/${postId}`,
           { method: 'GET' }
         );
         if (!res.ok) {
@@ -142,7 +142,7 @@ export default function WriteScreen({ route, navigation }: Props) {
       // “수정 모드”일 때: PUT(또는 PATCH) 요청
       if (postId) {
         const res = await fetchWithAuth(
-          `https://${BASIC_URL}/api/diaryposts/${postId}`,
+          `${BASIC_URL}/api/diaryposts/${postId}`,
           {
             method: 'PUT', // 백엔드가 PATCH를 받으면 'PATCH'로 수정
             headers: { 'Content-Type': 'application/json' },
@@ -164,7 +164,7 @@ export default function WriteScreen({ route, navigation }: Props) {
 
       // “새 글 작성 모드”일 때: POST 요청
       const response = await fetchWithAuth(
-        `https://${BASIC_URL}/api/diaries`,
+        `${BASIC_URL}/api/diaries`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

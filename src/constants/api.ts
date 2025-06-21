@@ -1,5 +1,5 @@
 // src/constants/api.ts
-export const BASIC_URL = 'https://auth.nodove.com/swagger-ui/index.html';
+export const BASIC_URL = 'http://10.0.2.2:7078';
 
 
 // src/api.ts
