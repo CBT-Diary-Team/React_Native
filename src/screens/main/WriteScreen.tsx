@@ -13,14 +13,10 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../navigation/AppStack';
 import { AuthContext } from '../../context/AuthContext';
 import { BASIC_URL } from '../../constants/api';
-
 import { jwtDecode } from 'jwt-decode';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Write'>;
@@ -42,18 +38,16 @@ interface TokenPayload {
 export default function WriteScreen({ route, navigation }: Props) {
   const { userToken, fetchWithAuth, user } = useContext(AuthContext);
 
-  let decoded: TokenPayload = { id: '', loginId: '', exp: 0, iat: 0 };
   // 토큰에서 User Table ID 추출
+  let decoded: TokenPayload = { id: '', loginId: '', exp: 0, iat: 0 };
   if (userToken) {
-      decoded = jwtDecode<TokenPayload>(userToken);
-    }
+    decoded = jwtDecode<TokenPayload>(userToken);
+  }
   const userId = decoded.id;
 
-  // route.params.postId가 있으면 수정 모드
+  // 수정 모드 판별
   const diaryId = (route.params as { diaryId?: string })?.diaryId;
 
-  const [date, setDate] = useState<Date | undefined>(undefined);
-  const [showPicker, setShowPicker] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -76,11 +70,6 @@ export default function WriteScreen({ route, navigation }: Props) {
       })
       .then((data: AIResponseDto | null) => {
         if (data) {
-          const [y, m, d] = data.createdAt
-            .split('T')[0]
-            .split('-')
-            .map(n => parseInt(n, 10));
-          setDate(new Date(y, m - 1, d));
           setTitle(data.diaryTitle);
           setContent(data.diaryContent);
         }
@@ -92,21 +81,8 @@ export default function WriteScreen({ route, navigation }: Props) {
       .finally(() => setIsLoading(false));
   }, [diaryId]);
 
-  const onPressDate = () => setShowPicker(true);
-  const onChangeDate = (event: DateTimePickerEvent, selected?: Date) => {
-    setShowPicker(false);
-    if (event.type === 'set' && selected) setDate(selected);
-  };
-  const formatDate = (d?: Date) =>
-    d
-      ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-          d.getDate()
-        ).padStart(2, '0')}`
-      : '';
-
   /** 제출 처리 */
   const handleSubmit = async () => {
-    if (!date) return Alert.alert('날짜를 선택하세요.');
     if (!title.trim()) return Alert.alert('제목을 입력하세요.');
     if (!content.trim()) return Alert.alert('내용을 입력하세요.');
     if (!user) return Alert.alert('로그인이 필요합니다.');
@@ -179,24 +155,6 @@ export default function WriteScreen({ route, navigation }: Props) {
           resizeMode="cover"
         />
 
-        <TouchableOpacity onPress={onPressDate} style={styles.dateWrapper}>
-          <TextInput
-            style={styles.dateInput}
-            placeholder="날짜 선택"
-            placeholderTextColor="#999"
-            value={formatDate(date)}
-            editable={false}
-          />
-        </TouchableOpacity>
-        {showPicker && (
-          <DateTimePicker
-            value={date || new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
-            onChange={onChangeDate}
-          />
-        )}
-
         <TextInput
           style={[styles.input, styles.titleInput]}
           value={title}
@@ -208,7 +166,15 @@ export default function WriteScreen({ route, navigation }: Props) {
           style={[styles.input, styles.contentInput]}
           value={content}
           onChangeText={setContent}
-          placeholder="내용"
+          placeholder={
+`주요 인지왜곡(인지적 오류) 목록\n
+- 이분법적 사고 하지 않기\n
+- 과잉 일반화 하지 않기\n
+- 긍정 무시 하지 않기\n
+- 성급한 결론 도출하지 않기\n
+- 극대화·축소화 하지 않기\n
+- 감정적 추리 하지 않기\n
+- 개인화·질책 하지 않기`}
           placeholderTextColor="#999"
           multiline
         />
@@ -233,22 +199,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F4F8', paddingTop: 40 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F4F8' },
   inputContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 20 },
-  dateWrapper: { marginBottom: 16 },
-  dateInput: {
-    height: 50,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#00B8B0',
-    paddingHorizontal: 12,
-    fontSize: 16,
-    color: '#333',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
   input: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,

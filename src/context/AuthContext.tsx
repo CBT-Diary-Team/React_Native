@@ -19,7 +19,6 @@ export type AuthContextType = {
   signIn: (loginId: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
-  refreshUser: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextType>({
@@ -30,7 +29,6 @@ export const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signOut: async () => {},
   fetchWithAuth: async () => new Response(null, { status: 500 }),
-  refreshUser: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -84,8 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ loginId, password }),
       });
       if (!res.ok) {
-        const errorText = await res.text();                      // :contentReference[oaicite:0]{index=0}
-        console.log('❌ Raw error HTML:', errorText);              // 전체 HTML을 로그로 남김
+        const errorText = await res.text();              
+        console.log('❌ Raw error HTML:', errorText); 
         Alert.alert(
           '로그인 실패',
           `서버 오류 ${res.status} (로그는 Logcat 확인)`
@@ -157,18 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     bootstrapAsync();
   }, [fetchWithAuth]);
 
-  const refreshUser = useCallback(async () => {
-    if (!userToken) return;
-    const res = await fetchWithAuth(`https://${BASIC_URL}/api/users/me`);
-    if (res.ok) {
-      const { user } = await res.json();
-      setUser(user);
-    }
-  }, [fetchWithAuth, userToken]);
+
 
   const contextValue = useMemo(
-    () => ({ userToken, user, isBootstrapping, isAuthLoading, signIn, signOut, fetchWithAuth, refreshUser }),
-    [userToken, user, isBootstrapping, isAuthLoading, signIn, signOut, fetchWithAuth, refreshUser]
+    () => ({ userToken, user, isBootstrapping, isAuthLoading, signIn, signOut, fetchWithAuth}),
+    [userToken, user, isBootstrapping, isAuthLoading, signIn, signOut, fetchWithAuth]
   );
 
   return (
