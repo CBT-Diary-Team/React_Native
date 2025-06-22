@@ -42,6 +42,11 @@ export default function SignupScreen({ navigation }: Props) {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [nicknameError, setNicknameError] = useState('');
+  
+
+  const [isEmailSubmitting, setEmailIsSubmitting] = useState(false);
+  const [isVerifiySubmitting, setIsVerifiySubmitting] = useState(false);
+  const [isSignupSubmitting, setIsSignupSubmitting] = useState(false);
 
   const isLoginIdTooShort = (loginId: string): boolean =>
     loginId.length > 0 && loginId.length < 4;
@@ -78,14 +83,6 @@ export default function SignupScreen({ navigation }: Props) {
     const isDuplicate = res_json.data === true;
     const isAvailable = !isDuplicate;
 
-    console.log(`🔍 ${fieldName} duplication check:`, {
-      endpoint,
-      payload,
-      response: res_json,
-      isDuplicate,
-      isAvailable
-    });
-
     return {
       isDuplicate,
       isAvailable,
@@ -93,76 +90,6 @@ export default function SignupScreen({ navigation }: Props) {
     };
   };
 
-  // Debounced API checks - ALL using consistent logic
-  const debouncedCheckLoginId = useRef(
-    debounce(async (value: string) => {
-      try {
-        const { isDuplicate, isAvailable, message } = await checkDuplication(
-          'loginId',
-          { loginId: value },
-          'LoginId'
-        );
-
-        setLoginIdAvailable(isAvailable);
-
-        if (isDuplicate) {
-          setLoginIdError(message || '이미 사용 중인 아이디입니다.');
-        } else {
-          setLoginIdError('');
-        }
-      } catch (e: any) {
-        setLoginIdAvailable(null);
-        setLoginIdError(e.message || '알 수 없는 오류가 발생했습니다.');
-      }
-    }, 300)
-  ).current;
-
-  const debouncedCheckEmail = useRef(
-    debounce(async (value: string) => {
-      try {
-        const { isDuplicate, isAvailable, message } = await checkDuplication(
-          'email',
-          { email: value },
-          'Email'
-        );
-
-        setEmailAvailable(isAvailable);
-
-        if (isDuplicate) {
-          setEmailError(message || '이미 사용 중인 이메일입니다.');
-        } else {
-          setEmailError('');
-        }
-      } catch (e: any) {
-        setEmailAvailable(null);
-        setEmailError(e.message || '알 수 없는 오류가 발생했습니다.');
-      }
-    }, 300)
-  ).current;
-
-  const debouncedCheckNickname = useRef(
-    debounce(async (value: string) => {
-      if (!value) return;
-      try {
-        const { isDuplicate, isAvailable, message } = await checkDuplication(
-          'nickname',
-          { nickname: value },
-          'Nickname'
-        );
-
-        setNicknameAvailable(isAvailable);
-
-        if (isDuplicate) {
-          setNicknameError(message || '이미 사용 중인 닉네임입니다.');
-        } else {
-          setNicknameError('');
-        }
-      } catch (e: any) {
-        setNicknameAvailable(null);
-        setNicknameError(e.message || '알 수 없는 오류가 발생했습니다.');
-      }
-    }, 300)
-  ).current;
 
   const handleLoginIdChange = (text: string) => {
     setLoginId(text);
@@ -249,6 +176,7 @@ export default function SignupScreen({ navigation }: Props) {
     }
 
     try {
+      setEmailIsSubmitting(true);
       const { isDuplicate, isAvailable, message } = await checkDuplication(
         'email',
         { email },
@@ -261,6 +189,7 @@ export default function SignupScreen({ navigation }: Props) {
         setEmailError(message || '이미 사용 중인 이메일입니다.');
         console.log('🔴 ❌ Email duplicate - showing alert');
         Alert.alert('오류', message || '이미 사용 중인 이메일입니다.');
+        setEmailIsSubmitting(false);
         return;
       } else {
         setEmailError('');
@@ -271,6 +200,7 @@ export default function SignupScreen({ navigation }: Props) {
       setEmailAvailable(null);
       setEmailError(e.message || '알 수 없는 오류가 발생했습니다.');
       Alert.alert('오류', '이메일 중복 확인 중 오류가 발생했습니다.');
+      setEmailIsSubmitting(false);
       return;
     }
 
@@ -288,17 +218,20 @@ export default function SignupScreen({ navigation }: Props) {
         data: any;
       };
       console.log('🔴 Email code response:', json);
+      setEmailIsSubmitting(false);
       Alert.alert(
         json.status === 'success' ? '확인' : '오류',
         json.message
       );
     } catch (e: any) {
       console.log('🔴 Email code send error:', e);
+      setEmailIsSubmitting(false);
       Alert.alert('오류', '인증번호 발송에 실패했습니다.');
     }
   };
 
   const handleConfirmEmailCode = async () => {
+    setIsVerifiySubmitting(true);
     try {
       const res = await fetch(`${BASIC_URL}/api/public/emailCheck`, {
         method: 'POST',
@@ -310,17 +243,20 @@ export default function SignupScreen({ navigation }: Props) {
         message: string;
         data: any;
       };
+      setIsVerifiySubmitting(false);
       Alert.alert(
         json.status === 'success' ? '확인' : '오류',
         json.message
       );
       setIsEmailVerified(json.status === 'success');
     } catch {
+      setIsVerifiySubmitting(false);
       Alert.alert('오류', '인증 확인 중 오류가 발생했습니다.');
     }
   };
 
   const handleSignup = async () => {
+    setIsSignupSubmitting(true);
     try {
       const { isDuplicate, isAvailable, message } = await checkDuplication(
         'email',
@@ -328,13 +264,15 @@ export default function SignupScreen({ navigation }: Props) {
         'Email'
       );
       if (isDuplicate) {
-        setLoginIdError(message || '이미 사용 중인 아이디입니다.');
+        setEmailError(message || '이미 사용 중인 아이디입니다.');
         Alert.alert(message || '이미 사용 중인 이메일입니다.');
+        setIsSignupSubmitting(false);
         return;
       } 
     } catch (e: any) {
-      setLoginIdError(e.message || '알 수 없는 오류가 발생했습니다.');
+      setEmailError(e.message || '알 수 없는 오류가 발생했습니다.');
       Alert.alert(e.message || '알 수 없는 오류가 발생했습니다.');
+      setIsSignupSubmitting(false);
       return;
     }
     try {
@@ -345,13 +283,15 @@ export default function SignupScreen({ navigation }: Props) {
       );
 
       if (isDuplicate) {
-        setEmailError(message || '이미 사용 중인 이메일입니다.');
+        setLoginIdError(message || '이미 사용 중인 이메일입니다.');
         Alert.alert(message || '이미 사용 중인 아이디입니다.');
+        setIsSignupSubmitting(false);
         return;
       } 
     } catch (e: any) {
-      setEmailError(e.message || '알 수 없는 오류가 발생했습니다.');
+      setLoginIdError(e.message || '알 수 없는 오류가 발생했습니다.');
       Alert.alert(e.message || '알 수 없는 오류가 발생했습니다.');
+      setIsSignupSubmitting(false);
       return;
     }
     try {
@@ -363,11 +303,13 @@ export default function SignupScreen({ navigation }: Props) {
       if (isDuplicate) {
         setNicknameError(message || '이미 사용 중인 닉네임입니다.');
         Alert.alert(message || '이미 사용 중인 닉네임입니다.');
+        setIsSignupSubmitting(false);
         return;
       } 
     } catch (e: any) {
       setNicknameError(e.message || '알 수 없는 오류가 발생했습니다.');
       Alert.alert(e.message || '알 수 없는 오류가 발생했습니다.');
+      setIsSignupSubmitting(false);
       return;
     }
     try {
@@ -382,6 +324,7 @@ export default function SignupScreen({ navigation }: Props) {
       );
       const json = await res.json() as { status: string; message: string };
       if (json.status === 'success') {
+        setIsSignupSubmitting(false);
         Alert.alert(
           '성공',
           json.message,
@@ -389,9 +332,11 @@ export default function SignupScreen({ navigation }: Props) {
           { cancelable: false }
         );
       } else {
+        setIsSignupSubmitting(false);
         Alert.alert('실패', json.message || '회원가입에 실패했습니다');
       }
     } catch {
+      setIsSignupSubmitting(false);
       Alert.alert('오류', '네트워크 오류가 발생했습니다');
     }
   };
@@ -493,14 +438,26 @@ export default function SignupScreen({ navigation }: Props) {
             <TouchableOpacity
               style={[
                 styles.verifyButton,
-                (!email || !isValidEmailFormat(email))
+                (!email || !isValidEmailFormat(email) || isEmailSubmitting)
                   ? styles.verifyButtonDisabled
                   : null
               ]}
               onPress={handleSendEmailCode}
-              disabled={!email || !isValidEmailFormat(email)}
+              disabled={!email || !isValidEmailFormat(email) || isEmailSubmitting}
             >
-              <Text style={[styles.verifyButtonText, (!email || !isValidEmailFormat(email) || emailAvailable === false) ? styles.verifyButtonTextDisabled : null]}>인증번호 발송</Text>
+              <Text
+                style={[
+                  styles.verifyButtonText,
+                  (!email ||
+                    !isValidEmailFormat(email) ||
+                    emailAvailable === false ||
+                    isEmailSubmitting)
+                    ? styles.verifyButtonTextDisabled
+                    : null
+                ]}
+              >
+                {isEmailSubmitting ? '발송 중...' : '인증번호 발송'}
+              </Text>
             </TouchableOpacity>
           </View>
           {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
@@ -518,15 +475,26 @@ export default function SignupScreen({ navigation }: Props) {
               value={emailCode}
               onChangeText={setEmailCode}
               placeholder="인증번호를 입력하세요"
-              keyboardType="number-pad"
             />
             <TouchableOpacity
               activeOpacity={0.8}
-              style={[styles.verifyButton, !emailCode ? styles.verifyButtonDisabled : null]}
+              style={[
+                styles.verifyButton,
+                (!emailCode || isVerifiySubmitting) ? styles.verifyButtonDisabled : null
+              ]}
               onPress={handleConfirmEmailCode}
-              disabled={!emailCode}
+              disabled={!emailCode || isVerifiySubmitting}
             >
-              <Text style={styles.verifyButtonText}>인증 확인</Text>
+              <Text
+                style={[
+                  styles.verifyButtonText,
+                  (!emailCode || isVerifiySubmitting)
+                    ? styles.verifyButtonTextDisabled
+                    : null
+                ]}
+              >
+                {isVerifiySubmitting ? '확인 중...' : '인증 확인'}
+              </Text>
             </TouchableOpacity>
           </View>
           {isEmailVerified ? (
@@ -574,11 +542,16 @@ export default function SignupScreen({ navigation }: Props) {
 
         {/* 회원가입 버튼 */}
         <TouchableOpacity
-          style={[styles.signupButton, allFieldsValid ? null : styles.signupButtonDisabled]}
+          style={[
+            styles.signupButton,
+            (!allFieldsValid || isSignupSubmitting) ? styles.signupButtonDisabled : null
+          ]}
           onPress={handleSignup}
-          disabled={!allFieldsValid}
+          disabled={!allFieldsValid || isSignupSubmitting}
         >
-          <Text style={styles.signupButtonText}>회원가입</Text>
+          <Text style={styles.signupButtonText}>
+            {isSignupSubmitting ? '가입 중...' : '회원가입'}
+          </Text>
         </TouchableOpacity>
 
         {/* 로그인 페이지로 이동 */}
