@@ -26,7 +26,7 @@ interface Res {
 
 export default function SignupScreen({ navigation }: Props) {
   const [loginId, setLoginId] = useState('');
-  
+  const [emailCode, setEmailCode] = useState('');
   const [loginIdAvailable, setLoginIdAvailable] = useState<boolean | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -36,6 +36,7 @@ export default function SignupScreen({ navigation }: Props) {
   const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(null);
   const [agreePersonal, setAgreePersonal] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   const [loginIdError, setLoginIdError] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -179,7 +180,54 @@ export default function SignupScreen({ navigation }: Props) {
     setNicknameAvailable(null);
     debouncedCheckNickname(text);
   };
-
+  const handleSendEmailCode = async () => {
+    if (!emailAvailable) {
+      Alert.alert('오류', '먼저 올바른 이메일을 입력해주세요.');
+      return;
+    }
+    try {
+      // 예시: 인증번호 요청 API 호출
+      const res = await fetch(`${BASIC_URL}/api/public/emailCode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const json = await res.json() as {
+        status: string;
+        message: string;
+        data: any;
+      };
+      // API가 돌려주는 message를 그대로 띄움
+      Alert.alert(
+        json.status === 'success' ? '확인' : '오류',
+        json.message
+      );
+    } catch (e: any) {
+      Alert.alert('오류', '인증번호 발송에 실패했습니다.');
+    }
+  };
+    const handleConfirmEmailCode = async () => {
+    try {
+      const res = await fetch(`${BASIC_URL}/api/public/emailCheck`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: emailCode }),
+      });
+      const json = await res.json() as {
+        status: string;
+        message: string;
+        data: any;
+      };
+      Alert.alert(
+        json.status === 'success' ? '확인' : '오류',
+        json.message
+      );
+      // 인증 성공 여부 저장
+      setIsEmailVerified(json.status === 'success');
+    } catch {
+      Alert.alert('오류', '인증 확인 중 오류가 발생했습니다.');
+    }
+  };
   const handleSignup = async () => {
     try {
       const res = await fetch(
@@ -212,6 +260,7 @@ export default function SignupScreen({ navigation }: Props) {
     !!email &&
     emailAvailable === true &&
     isValidPassword(password, loginId) &&
+    isEmailVerified === true &&
     password === confirmPassword &&
     !!nickname &&
     nicknameAvailable === true &&
@@ -234,16 +283,34 @@ export default function SignupScreen({ navigation }: Props) {
           onChangeText={handleLoginIdChange}
         />
         {loginIdError ? <Text style={styles.errorText}>{loginIdError}</Text> : null}
-        <TextInput
-          style={[styles.input, { marginBottom: 16 }]} 
-          placeholder="이메일"
-          placeholderTextColor="#999"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={handleEmailChange}
-        />
+        <View style={styles.rowContainer}>
+          <TextInput
+            style={[styles.rowInput, styles.flex7]}
+            placeholder="이메일"
+            placeholderTextColor="#999"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={handleEmailChange}
+          />
+          <TouchableOpacity style={[styles.buttonSendSmall, styles.flex3]} onPress={handleSendEmailCode}>
+            <Text style={styles.buttonSmallText}>인증번호 발송</Text>
+          </TouchableOpacity>
+        </View>
         {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+        <View style={styles.rowContainer}>
+          <TextInput
+            style={[styles.rowInput, styles.flex7]}
+            placeholder="인증번호 입력"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+            value={emailCode}
+            onChangeText={setEmailCode}
+          />
+          <TouchableOpacity style={[styles.buttonSmall, styles.flex3]} onPress={handleConfirmEmailCode}>
+            <Text style={styles.buttonSmallText}>확인</Text>
+          </TouchableOpacity>
+        </View>
         <TextInput
           style={[styles.input, { marginBottom: 16 }]} 
           placeholder="닉네임"
@@ -251,7 +318,8 @@ export default function SignupScreen({ navigation }: Props) {
           value={nickname}
           onChangeText={handleNicknameChange}
         />
-                <TextInput
+        {nicknameError ? <Text style={styles.errorText}>{nicknameError}</Text> : null}
+        <TextInput
           style={styles.input}
           placeholder="비밀번호"
           placeholderTextColor="#999"
@@ -313,7 +381,45 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 20,
   },
-
+  rowContainer: {
+    flexDirection: 'row',
+    width: '90%',
+    alignItems: 'center',
+    marginBottom: 8,
+    height: 48, 
+  },
+  rowInput: {
+    flex: 7,
+    height: 48,               // 고정 높이
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingHorizontal: 12,    // 세로 패딩 제거
+    color: '#000',
+    textAlignVertical: 'center', // Android에서 텍스트 수직 중앙
+    marginRight: 8,
+  },
+  buttonSendSmall: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#00B8B0',
+    borderRadius: 8,
+    height: 48, 
+  },
+  buttonSmall: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#6C757D',
+    borderRadius: 8,
+    height: 48, 
+  },
+  buttonSmallText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  flex7: { flex: 7, marginRight: 8 },
+  flex3: { flex: 3 },
   input: {
     width: '90%',
     borderWidth: 1,
@@ -322,6 +428,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
     color: '#000',
+    height: 48, 
   },
 
   errorText: {

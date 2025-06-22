@@ -78,11 +78,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (loginId: string, password: string) => {
     setIsAuthLoading(true);
     try {
-      const res = await fetch(`${BASIC_URL}/login`, {
+      const res = await fetch(`${BASIC_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loginId, password }),
       });
+      if (!res.ok) {
+        const errorText = await res.text();                      // :contentReference[oaicite:0]{index=0}
+        console.log('❌ Raw error HTML:', errorText);              // 전체 HTML을 로그로 남김
+        Alert.alert(
+          '로그인 실패',
+          `서버 오류 ${res.status} (로그는 Logcat 확인)`
+        );
+        return;
+      }
       const json = (await res.json()) as {
         status: string;
         message: string;
@@ -102,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (e: any) {
       // 네트워크 또는 예외 처리
+      console.error('Sign-in exception:', e);
       Alert.alert('오류', e.message || '로그인 중 오류가 발생했습니다.');
     } finally {
       setIsAuthLoading(false);
