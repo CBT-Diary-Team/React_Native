@@ -1,8 +1,9 @@
 {
-  "extends": "@react-native/typescript-config/tsconfig.json"
-  ,
-  "include": [
-    "src",
-    "declarations.d.ts"
-  ]
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "bundler",          // customConditions 사용을 위해 필수
+    "esModuleInterop": true,                // CommonJS 모듈과의 호환
+    "allowSyntheticDefaultImports": true    // default import 문법 허용
+  },
+  "include": ["src", "declarations.d.ts"]
 }

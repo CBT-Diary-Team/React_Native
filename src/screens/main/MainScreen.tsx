@@ -14,9 +14,7 @@ import {
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-// jwtDecode을 require로 불러와 TS 에러 방지
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const jwtDecode = require('jwt-decode');
+import { jwtDecode } from 'jwt-decode';
 import { AppStackParamList } from '../../navigation/AppStack';
 import { AuthContext } from '../../context/AuthContext';
 import { BASIC_URL } from '../../constants/api';
@@ -46,8 +44,11 @@ interface TokenPayload {
 export default function MainScreen({ navigation }: Props) {
   const { userToken, fetchWithAuth } = useContext(AuthContext);
 
-  // 토큰에서 User Table ID 추출
-  const decoded: TokenPayload = userToken ? jwtDecode(userToken) : { id: '', loginId: '', exp: 0, iat: 0 };
+  let decoded: TokenPayload = { id: '', loginId: '', exp: 0, iat: 0 };
+
+  if (userToken) {
+    decoded = jwtDecode<TokenPayload>(userToken);
+  }
   const userId = decoded.id;
 
   const [searchText, setSearchText] = useState('');

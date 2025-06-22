@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (loginId: string, password: string) => {
     setIsAuthLoading(true);
     try {
-      const res = await fetch(`${BASIC_URL}/api/login`, {
+      const res = await fetch(`${BASIC_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loginId, password }),

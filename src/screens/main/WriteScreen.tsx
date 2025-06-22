@@ -21,9 +21,7 @@ import { AppStackParamList } from '../../navigation/AppStack';
 import { AuthContext } from '../../context/AuthContext';
 import { BASIC_URL } from '../../constants/api';
 
-// jwtDecode을 require로 불러와 TS 에러 방지
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const jwtDecode = require('jwt-decode');
+import { jwtDecode } from 'jwt-decode';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Write'>;
 
@@ -42,12 +40,13 @@ interface TokenPayload {
 }
 
 export default function WriteScreen({ route, navigation }: Props) {
-  const { userToken, fetchWithAuth } = useContext(AuthContext);
+  const { userToken, fetchWithAuth, user } = useContext(AuthContext);
 
+  let decoded: TokenPayload = { id: '', loginId: '', exp: 0, iat: 0 };
   // 토큰에서 User Table ID 추출
-  const decoded: TokenPayload = userToken
-    ? jwtDecode(userToken)
-    : { id: '', loginId: '', exp: 0, iat: 0 };
+  if (userToken) {
+      decoded = jwtDecode<TokenPayload>(userToken);
+    }
   const userId = decoded.id;
 
   // route.params.postId가 있으면 수정 모드
@@ -110,7 +109,7 @@ export default function WriteScreen({ route, navigation }: Props) {
     if (!date) return Alert.alert('날짜를 선택하세요.');
     if (!title.trim()) return Alert.alert('제목을 입력하세요.');
     if (!content.trim()) return Alert.alert('내용을 입력하세요.');
-    if (!userId) return Alert.alert('로그인이 필요합니다.');
+    if (!user) return Alert.alert('로그인이 필요합니다.');
 
     setIsLoading(true);
     try {
