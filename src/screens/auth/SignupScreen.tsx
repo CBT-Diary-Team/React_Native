@@ -138,7 +138,7 @@ export default function SignupScreen({ navigation }: Props) {
       setLoginIdError('아이디는 4자 이상이어야 합니다.');
     } else {
       setLoginIdError('');
-      debouncedCheckLoginId(text);
+      // debouncedCheckLoginId(text);
     }
   };
 
