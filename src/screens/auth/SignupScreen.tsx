@@ -61,24 +61,57 @@ export default function SignupScreen({ navigation }: Props) {
     return true;
   };
 
-  // Debounced API checks
+  // ✅ CONSISTENT duplication check function
+  const checkDuplication = async (
+    endpoint: string,
+    payload: object,
+    fieldName: string
+  ): Promise<{ isDuplicate: boolean; isAvailable: boolean; message: string }> => {
+    const res = await fetch(`${BASIC_URL}/api/public/check/${endpoint}/IsDuplicate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const res_json: Res = await res.json();
+
+    // ✅ CONSISTENT LOGIC: API returns data: true for duplicate, data: false for available
+    const isDuplicate = res_json.data === true;
+    const isAvailable = !isDuplicate;
+
+    console.log(`🔍 ${fieldName} duplication check:`, {
+      endpoint,
+      payload,
+      response: res_json,
+      isDuplicate,
+      isAvailable
+    });
+
+    return {
+      isDuplicate,
+      isAvailable,
+      message: res_json.message || ''
+    };
+  };
+
+  // Debounced API checks - ALL using consistent logic
   const debouncedCheckLoginId = useRef(
     debounce(async (value: string) => {
       try {
-        const res = await fetch(`${BASIC_URL}/api/public/check/loginId/IsDuplicate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ loginId: value }),
-        });
-        const res_json:Res = await res.json();
-        setLoginIdAvailable(res_json.data);
-        if(!loginIdAvailable){
-          setLoginIdError(`${res_json.message}`)
+        const { isDuplicate, isAvailable, message } = await checkDuplication(
+          'loginId',
+          { loginId: value },
+          'LoginId'
+        );
+
+        setLoginIdAvailable(isAvailable);
+
+        if (isDuplicate) {
+          setLoginIdError(message || '이미 사용 중인 아이디입니다.');
         } else {
-          setLoginIdError("")
+          setLoginIdError('');
         }
       } catch (e: any) {
-        setLoginIdAvailable(null)
+        setLoginIdAvailable(null);
         setLoginIdError(e.message || '알 수 없는 오류가 발생했습니다.');
       }
     }, 300)
@@ -87,20 +120,21 @@ export default function SignupScreen({ navigation }: Props) {
   const debouncedCheckEmail = useRef(
     debounce(async (value: string) => {
       try {
-        const res = await fetch(`${BASIC_URL}/api/public/check/email/IsDuplicate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: value }),
-        });
-        const res_json:Res = await res.json();
-        setEmailAvailable(res_json.data);
-        if(!emailAvailable){
-          setEmailError(`${res_json.message}`)
+        const { isDuplicate, isAvailable, message } = await checkDuplication(
+          'email',
+          { email: value },
+          'Email'
+        );
+
+        setEmailAvailable(isAvailable);
+
+        if (isDuplicate) {
+          setEmailError(message || '이미 사용 중인 이메일입니다.');
         } else {
-          setEmailError("")
+          setEmailError('');
         }
       } catch (e: any) {
-        setEmailAvailable(null)
+        setEmailAvailable(null);
         setEmailError(e.message || '알 수 없는 오류가 발생했습니다.');
       }
     }, 300)
@@ -110,46 +144,59 @@ export default function SignupScreen({ navigation }: Props) {
     debounce(async (value: string) => {
       if (!value) return;
       try {
-        const res = await fetch(`${BASIC_URL}/api/public/check/nickname/IsDuplicate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nickname: value }),
-        });
-        const res_json:Res = await res.json();
-        setNicknameAvailable(res_json.data);
-        if(!emailAvailable){
-          setNicknameError(`${res_json.message}`)
+        const { isDuplicate, isAvailable, message } = await checkDuplication(
+          'nickname',
+          { nickname: value },
+          'Nickname'
+        );
+
+        setNicknameAvailable(isAvailable);
+
+        if (isDuplicate) {
+          setNicknameError(message || '이미 사용 중인 닉네임입니다.');
         } else {
-          setNicknameError("")
+          setNicknameError('');
         }
       } catch (e: any) {
-        setNicknameAvailable(null)
+        setNicknameAvailable(null);
         setNicknameError(e.message || '알 수 없는 오류가 발생했습니다.');
       }
     }, 300)
   ).current;
 
-
-
   const handleLoginIdChange = (text: string) => {
     setLoginId(text);
     setLoginIdAvailable(null);
-    if (text&&isLoginIdTooShort(text)) {
+
+    if (!text) {
+      setLoginIdError('');
+      return;
+    }
+    if (isLoginIdTooShort(text)) {
       setLoginIdError('아이디는 4자 이상이어야 합니다.');
+      setLoginIdAvailable(false)
     } else {
       setLoginIdError('');
-      // debouncedCheckLoginId(text);
+      setLoginIdAvailable(true)
     }
   };
 
   const handleEmailChange = (text: string) => {
+    console.log('📧 Email change:', text);
     setEmail(text);
     setEmailAvailable(null);
+    setIsEmailVerified(false);
+    console.log('📧 Reset emailAvailable to null and emailVerified to false');
+
     if (text && !isValidEmailFormat(text)) {
       setEmailError('올바른 이메일 형식을 입력해주세요.');
+      console.log('📧 Invalid email format');
+    } else if (text.length > 0) {
+      setEmailError('');
+      console.log('📧 Valid email format, calling debouncedCheckEmail');
+      // debouncedCheckEmail(text);
     } else {
       setEmailError('');
-      debouncedCheckEmail(text);
     }
   };
 
@@ -177,16 +224,59 @@ export default function SignupScreen({ navigation }: Props) {
 
   const handleNicknameChange = (text: string) => {
     setNickname(text);
-    setNicknameAvailable(null);
-    debouncedCheckNickname(text);
+    // setNicknameAvailable(null);
+
+    // if (!text) {
+    //   setNicknameError('');
+    //   return;
+    // } 
+
+    // setNicknameError('');
+    // debouncedCheckNickname(text);
   };
+
   const handleSendEmailCode = async () => {
-    if (!emailAvailable) {
+    console.log('🔴 handleSendEmailCode called');
+    console.log('🔴 Current email:', email);
+    console.log('🔴 isValidEmailFormat:', isValidEmailFormat(email));
+    console.log('🔴 emailAvailable:', emailAvailable);
+
+    // 이메일 형식 체크
+    if (!email || !isValidEmailFormat(email)) {
+      console.log('🔴 Invalid email or format');
       Alert.alert('오류', '먼저 올바른 이메일을 입력해주세요.');
       return;
     }
+
     try {
-      // 예시: 인증번호 요청 API 호출
+      const { isDuplicate, isAvailable, message } = await checkDuplication(
+        'email',
+        { email },
+        'Email (Manual)'
+      );
+
+      setEmailAvailable(isAvailable);
+
+      if (isDuplicate) {
+        setEmailError(message || '이미 사용 중인 이메일입니다.');
+        console.log('🔴 ❌ Email duplicate - showing alert');
+        Alert.alert('오류', message || '이미 사용 중인 이메일입니다.');
+        return;
+      } else {
+        setEmailError('');
+        console.log('🔴 ✅ Email available - continuing');
+      }
+    } catch (e: any) {
+      console.log('🔴 Manual email check error:', e);
+      setEmailAvailable(null);
+      setEmailError(e.message || '알 수 없는 오류가 발생했습니다.');
+      Alert.alert('오류', '이메일 중복 확인 중 오류가 발생했습니다.');
+      return;
+    }
+
+    console.log('🔴 Sending email verification code');
+    try {
+      // 인증번호 요청 API 호출
       const res = await fetch(`${BASIC_URL}/api/public/emailCode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -197,16 +287,18 @@ export default function SignupScreen({ navigation }: Props) {
         message: string;
         data: any;
       };
-      // API가 돌려주는 message를 그대로 띄움
+      console.log('🔴 Email code response:', json);
       Alert.alert(
         json.status === 'success' ? '확인' : '오류',
         json.message
       );
     } catch (e: any) {
+      console.log('🔴 Email code send error:', e);
       Alert.alert('오류', '인증번호 발송에 실패했습니다.');
     }
   };
-    const handleConfirmEmailCode = async () => {
+
+  const handleConfirmEmailCode = async () => {
     try {
       const res = await fetch(`${BASIC_URL}/api/public/emailCheck`, {
         method: 'POST',
@@ -222,14 +314,64 @@ export default function SignupScreen({ navigation }: Props) {
         json.status === 'success' ? '확인' : '오류',
         json.message
       );
-      // 인증 성공 여부 저장
       setIsEmailVerified(json.status === 'success');
     } catch {
       Alert.alert('오류', '인증 확인 중 오류가 발생했습니다.');
     }
   };
+
   const handleSignup = async () => {
     try {
+      const { isDuplicate, isAvailable, message } = await checkDuplication(
+        'email',
+        { email: email },
+        'Email'
+      );
+      if (isDuplicate) {
+        setLoginIdError(message || '이미 사용 중인 아이디입니다.');
+        Alert.alert(message || '이미 사용 중인 이메일입니다.');
+        return;
+      } 
+    } catch (e: any) {
+      setLoginIdError(e.message || '알 수 없는 오류가 발생했습니다.');
+      Alert.alert(e.message || '알 수 없는 오류가 발생했습니다.');
+      return;
+    }
+    try {
+      const { isDuplicate, isAvailable, message } = await checkDuplication(
+        'loginId',
+        { loginId: loginId },
+        'LoginId'
+      );
+
+      if (isDuplicate) {
+        setEmailError(message || '이미 사용 중인 이메일입니다.');
+        Alert.alert(message || '이미 사용 중인 아이디입니다.');
+        return;
+      } 
+    } catch (e: any) {
+      setEmailError(e.message || '알 수 없는 오류가 발생했습니다.');
+      Alert.alert(e.message || '알 수 없는 오류가 발생했습니다.');
+      return;
+    }
+    try {
+      const { isDuplicate, isAvailable, message } = await checkDuplication(
+        'nickname',
+        { nickname: nickname },
+        'Nickname'
+      );
+      if (isDuplicate) {
+        setNicknameError(message || '이미 사용 중인 닉네임입니다.');
+        Alert.alert(message || '이미 사용 중인 닉네임입니다.');
+        return;
+      } 
+    } catch (e: any) {
+      setNicknameError(e.message || '알 수 없는 오류가 발생했습니다.');
+      Alert.alert(e.message || '알 수 없는 오류가 발생했습니다.');
+      return;
+    }
+    try {
+      
       const res = await fetch(
         `${BASIC_URL}/api/public/join`,
         {
@@ -254,225 +396,345 @@ export default function SignupScreen({ navigation }: Props) {
     }
   };
 
+  // ✅ FINAL CHECK: All validation logic
   const allFieldsValid =
-    !!loginId &&
-    loginIdAvailable === true &&
-    !!email &&
-    emailAvailable === true &&
+    loginIdAvailable === true && //아이디 사용 가능
     isValidPassword(password, loginId) &&
-    isEmailVerified === true &&
     password === confirmPassword &&
+    isValidEmailFormat(email) &&
+    emailAvailable === true &&
+    isEmailVerified &&
     !!nickname &&
-    nicknameAvailable === true &&
     agreePersonal &&
     agreeTerms;
 
+  // Debug log for allFieldsValid
+  console.log('🔍 allFieldsValid calculation:', {
+    loginId: !!loginId,
+    loginIdAvailable: loginIdAvailable === true,
+    password: !!password,
+    isValidPassword: isValidPassword(password, loginId),
+    passwordMatch: password === confirmPassword,
+    email: !!email,
+    isValidEmailFormat: isValidEmailFormat(email),
+    emailAvailable: emailAvailable === true,
+    isEmailVerified,
+    nickname: !!nickname,
+    nicknameAvailable: nicknameAvailable === true,
+    agreePersonal,
+    agreeTerms,
+    finalResult: allFieldsValid
+  });
+
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.centerBox} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.logoContainer}>
         <Image
           source={require('../../../assets/images/logo.png')}
           style={styles.logo}
-          resizeMode="cover"
         />
-        <TextInput
-          style={[styles.input, { marginBottom: 16 }]} 
-          placeholder="아이디"
-          placeholderTextColor="#999"
-          value={loginId}
-          onChangeText={handleLoginIdChange}
-        />
-        {loginIdError ? <Text style={styles.errorText}>{loginIdError}</Text> : null}
-        <View style={styles.rowContainer}>
-          <TextInput
-            style={[styles.rowInput, styles.flex7]}
-            placeholder="이메일"
-            placeholderTextColor="#999"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={handleEmailChange}
-          />
-          <TouchableOpacity style={[styles.buttonSendSmall, styles.flex3]} onPress={handleSendEmailCode}>
-            <Text style={styles.buttonSmallText}>인증번호 발송</Text>
-          </TouchableOpacity>
-        </View>
-        {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
-        <View style={styles.rowContainer}>
-          <TextInput
-            style={[styles.rowInput, styles.flex7]}
-            placeholder="인증번호 입력"
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-            value={emailCode}
-            onChangeText={setEmailCode}
-          />
-          <TouchableOpacity style={[styles.buttonSmall, styles.flex3]} onPress={handleConfirmEmailCode}>
-            <Text style={styles.buttonSmallText}>확인</Text>
-          </TouchableOpacity>
-        </View>
-        <TextInput
-          style={[styles.input, { marginBottom: 16 }]} 
-          placeholder="닉네임"
-          placeholderTextColor="#999"
-          value={nickname}
-          onChangeText={handleNicknameChange}
-        />
-        {nicknameError ? <Text style={styles.errorText}>{nicknameError}</Text> : null}
-        <TextInput
-          style={styles.input}
-          placeholder="비밀번호"
-          placeholderTextColor="#999"
-          secureTextEntry
-          value={password}
-          onChangeText={handlePasswordChange}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="비밀번호 확인"
-          placeholderTextColor="#999"
-          secureTextEntry
-          value={confirmPassword}
-          onChangeText={handleConfirmPasswordChange}
-        />
-        {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
-      </ScrollView>
-
-      <View style={styles.agreeContainer}>
-        <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreePersonal(!agreePersonal)}>
-          <Text style={styles.checkbox}>{agreePersonal ? '✅' : '⬜'}</Text>
-          <Text style={styles.agreeText}>[필수] 개인정보 수집 및 이용</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-        style={[styles.agreeRow, {marginBottom: 4}]}
-         onPress={() => setAgreeTerms(!agreeTerms)}>
-          <Text style={styles.checkbox}>{agreeTerms ? '✅' : '⬜'}</Text>
-          <Text style={styles.agreeText}>[필수] 서비스 이용 약관</Text>
-        </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        style={[styles.button, { opacity: allFieldsValid ? 1 : 0.5 }]}
-        onPress={handleSignup}
-        disabled={!allFieldsValid}
-      >
-        <Text style={styles.buttonText}>회원가입</Text>
-      </TouchableOpacity>
-    </View>
+      <View style={styles.formContainer}>
+
+        {/* 아이디 입력 */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>아이디</Text>
+          <TextInput
+            style={[styles.input, loginIdError ? styles.inputError : null]}
+            value={loginId}
+            onChangeText={handleLoginIdChange}
+            placeholder="아이디를 입력하세요 (4자 이상)"
+            autoCapitalize="none"
+          />
+          {loginIdError ? <Text style={styles.errorText}>{loginIdError}</Text> : null}
+          {loginIdAvailable === true && !loginIdError ? (
+            <Text style={styles.successText}>사용 가능한 아이디입니다</Text>
+          ) : null}
+        </View>
+
+        {/* 비밀번호 입력 */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>비밀번호</Text>
+          <TextInput
+            style={[styles.input, passwordError ? styles.inputError : null]}
+            value={password}
+            onChangeText={handlePasswordChange}
+            placeholder="비밀번호를 입력하세요"
+            secureTextEntry
+          />
+          {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+        </View>
+
+        {/* 비밀번호 확인 */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>비밀번호 확인</Text>
+          <TextInput
+            style={[styles.input, passwordError && confirmPassword ? styles.inputError : null]}
+            value={confirmPassword}
+            onChangeText={handleConfirmPasswordChange}
+            placeholder="비밀번호를 다시 입력하세요"
+            secureTextEntry
+          />
+        </View>
+
+        {/* 이메일 입력 */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>이메일</Text>
+          <View style={styles.emailContainer}>
+            <TextInput
+              style={[styles.emailInput, emailError ? styles.inputError : null]}
+              value={email}
+              onChangeText={handleEmailChange}
+              placeholder="이메일을 입력하세요"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={[
+                styles.verifyButton,
+                (!email || !isValidEmailFormat(email))
+                  ? styles.verifyButtonDisabled
+                  : null
+              ]}
+              onPress={handleSendEmailCode}
+              disabled={!email || !isValidEmailFormat(email)}
+            >
+              <Text style={[styles.verifyButtonText, (!email || !isValidEmailFormat(email) || emailAvailable === false) ? styles.verifyButtonTextDisabled : null]}>인증번호 발송</Text>
+            </TouchableOpacity>
+          </View>
+          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+          {emailAvailable === true && !emailError ? (
+            <Text style={styles.successText}>사용 가능한 이메일입니다</Text>
+          ) : null}
+        </View>
+
+        {/* 이메일 인증번호 입력 */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>이메일 인증번호</Text>
+          <View style={styles.emailContainer}>
+            <TextInput
+              style={styles.emailInput}
+              value={emailCode}
+              onChangeText={setEmailCode}
+              placeholder="인증번호를 입력하세요"
+              keyboardType="number-pad"
+            />
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[styles.verifyButton, !emailCode ? styles.verifyButtonDisabled : null]}
+              onPress={handleConfirmEmailCode}
+              disabled={!emailCode}
+            >
+              <Text style={styles.verifyButtonText}>인증 확인</Text>
+            </TouchableOpacity>
+          </View>
+          {isEmailVerified ? (
+            <Text style={styles.successText}>이메일 인증이 완료되었습니다</Text>
+          ) : null}
+        </View>
+
+        {/* 닉네임 입력 */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>닉네임</Text>
+          <TextInput
+            style={[styles.input, nicknameError ? styles.inputError : null]}
+            value={nickname}
+            onChangeText={handleNicknameChange}
+            placeholder="닉네임을 입력하세요"
+          />
+          {nicknameError ? <Text style={styles.errorText}>{nicknameError}</Text> : null}
+          {nicknameAvailable === true && !nicknameError ? (
+            <Text style={styles.successText}>사용 가능한 닉네임입니다</Text>
+          ) : null}
+        </View>
+
+        {/* 이용약관 동의 */}
+        <View style={styles.agreementContainer}>
+          <TouchableOpacity
+            style={styles.agreementRow}
+            onPress={() => setAgreePersonal(!agreePersonal)}
+          >
+            <View style={[styles.checkbox, agreePersonal ? styles.checkboxChecked : null]}>
+              {agreePersonal ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={styles.agreementText}>개인정보 처리방침에 동의합니다</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.agreementRow}
+            onPress={() => setAgreeTerms(!agreeTerms)}
+          >
+            <View style={[styles.checkbox, agreeTerms ? styles.checkboxChecked : null]}>
+              {agreeTerms ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={styles.agreementText}>이용약관에 동의합니다</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 회원가입 버튼 */}
+        <TouchableOpacity
+          style={[styles.signupButton, allFieldsValid ? null : styles.signupButtonDisabled]}
+          onPress={handleSignup}
+          disabled={!allFieldsValid}
+        >
+          <Text style={styles.signupButtonText}>회원가입</Text>
+        </TouchableOpacity>
+
+        {/* 로그인 페이지로 이동 */}
+        <TouchableOpacity
+          style={styles.loginLinkContainer}
+          onPress={() => navigation.navigate('SignIn')}
+        >
+          <Text style={styles.loginLinkText}>이미 계정이 있으신가요? 로그인</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-
-  centerBox: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
     paddingVertical: 20,
   },
-
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   logo: {
     width: 180,
     height: 90,
-    alignSelf: 'center',
-    marginBottom: 20,
+    resizeMode: 'cover',
   },
-  rowContainer: {
-    flexDirection: 'row',
-    width: '90%',
-    alignItems: 'center',
+  formContainer: {
+    paddingHorizontal: 30,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 30,
+    color: '#333',
+  },
+  inputGroup: {
+    marginBottom: 10,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
     marginBottom: 8,
-    height: 48, 
+    color: '#333',
   },
-  rowInput: {
-    flex: 7,
-    height: 48,               // 고정 높이
+  input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#ddd',
     borderRadius: 8,
-    paddingHorizontal: 12,    // 세로 패딩 제거
-    color: '#000',
-    textAlignVertical: 'center', // Android에서 텍스트 수직 중앙
-    marginRight: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
   },
-  buttonSendSmall: {
-    justifyContent: 'center',
+  inputError: {
+    borderColor: '#ff4757',
+  },
+  emailContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+  },
+  emailInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    marginRight: 10,
+  },
+  verifyButton: {
     backgroundColor: '#00B8B0',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     borderRadius: 8,
-    height: 48, 
   },
-  buttonSmall: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#6C757D',
-    borderRadius: 8,
-    height: 48, 
+  verifyButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 1, // keep visible even when disabled
   },
-  buttonSmallText: {
+  verifyButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },
-  flex7: { flex: 7, marginRight: 8 },
-  flex3: { flex: 3 },
-  input: {
-    width: '90%',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    color: '#000',
-    height: 48, 
+  verifyButtonTextDisabled: {
+    color: '#666',
   },
-
   errorText: {
-    width: '90%',
-    color: 'red',
-    marginBottom: 8,
-    marginLeft: '5%',
+    fontSize: 14,
+    color: '#ff4757',
+    marginTop: 5,
   },
-
-  agreeContainer: {
-    width: '90%',
-    paddingHorizontal: '5%',
-    marginBottom: 20,
+  successText: {
+    fontSize: 14,
+    color: '#2ed573',
+    marginTop: 5,
   },
-
-  agreeRow: {
+  agreementContainer: {
+    marginVertical: 5,
+  },
+  agreementRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 15,
   },
-
   checkbox: {
-    fontSize: 20,
-    marginRight: 8,
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    borderRadius: 4,
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  agreeText: {
-    fontSize: 16,
-    color: '#333',
+  checkboxChecked: {
+    backgroundColor: '#007bff',
+    borderColor: '#007bff',
   },
-
-  button: {
-    width: '90%',
-    alignSelf: 'center',
+  checkmark: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  agreementText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  signupButton: {
     backgroundColor: '#C4B5FD',
     paddingVertical: 10,
     borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 52,
+    marginVertical: 10,
   },
-
-  buttonText: {
+  signupButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  signupButtonText: {
     color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  loginLinkContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  loginLinkText: {
     fontSize: 16,
-    fontWeight: '600',
+    color: '#007bff',
+    textDecorationLine: 'underline',
   },
 });
