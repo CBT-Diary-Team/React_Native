@@ -42,7 +42,7 @@ interface TokenPayload {
 }
 
 export default function MainScreen({ navigation }: Props) {
-  const { userToken, fetchWithAuth } = useContext(AuthContext);
+  const { userToken, fetchWithAuth, signOut } = useContext(AuthContext);
 
   let decoded: TokenPayload = { id: '', loginId: '', exp: 0, iat: 0 };
 
@@ -246,6 +246,18 @@ export default function MainScreen({ navigation }: Props) {
           <Text style={styles.pageButtonText}>{'다음 >'}</Text>
         </TouchableOpacity>
       </View>
+          <TouchableOpacity
+      style={styles.logoutButton}
+      onPress={async () => {
+        try {
+          await signOut();
+        } catch (e: any) {
+          Alert.alert('로그아웃 실패', e.message || '알 수 없는 오류');
+        }
+      }}
+    >
+      <Text style={styles.logoutButtonText}>로그아웃</Text>
+    </TouchableOpacity>
       <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('Write')}>
         <Text style={styles.fabIcon}>+</Text>
       </TouchableOpacity>
@@ -297,6 +309,25 @@ const styles = StyleSheet.create({
   pageButtonDisabled: { backgroundColor: '#ccc' },
   pageButtonText: { color: '#fff', fontSize: 14 },
   pageIndicator: { fontSize: 16, fontWeight: '500' },
+    logoutButton: {
+    position: 'absolute',
+    left: 18,
+    bottom: 36,
+    backgroundColor: '#f44336',    // 붉은 계열로 눈에 띄게
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  logoutButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
   fab: {
     position: 'absolute',
     right: 24,

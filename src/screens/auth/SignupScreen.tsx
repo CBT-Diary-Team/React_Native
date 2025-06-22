@@ -13,7 +13,6 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/AuthStack';
 import { BASIC_URL } from '../../constants/api';
-import debounce from 'lodash.debounce';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
