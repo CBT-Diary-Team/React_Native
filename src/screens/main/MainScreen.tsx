@@ -14,161 +14,134 @@ import {
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+// jwtDecode을 require로 불러와 TS 에러 방지
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const jwtDecode = require('jwt-decode');
 import { AppStackParamList } from '../../navigation/AppStack';
 import { AuthContext } from '../../context/AuthContext';
 import { BASIC_URL } from '../../constants/api';
 
-function toQueryString(obj: Record<string, any>): string {
-  const params: string[] = [];
-  Object.entries(obj).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      params.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
-    }
-  });
-  return params.length ? `?${params.join('&')}` : '';
-}
-
 export type Props = NativeStackScreenProps<AppStackParamList, 'Main'>;
 type Post = { id: string; title: string; date: string };
 
-interface DairyData {
-  status: string;
-  message: string;
-  diaries: Post[];
-  totalCount: number;
+interface AIResponseDto {
+  id: string;
+  userId: string;
+  diaryTitle: string;
+  diaryContent: string;
+  emotions: { category: string; intensity: number }[];
+  summary: string;
+  coaching: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface DateData {
-  status: string;
-  message: string;
-  dates: string[];
+interface TokenPayload {
+  id: string; // User Table ID
+  loginId: string;
+  exp: number;
+  iat: number;
 }
 
 export default function MainScreen({ navigation }: Props) {
-  const { user, fetchWithAuth, isAuthLoading } = useContext(AuthContext);
+  const { userToken, fetchWithAuth } = useContext(AuthContext);
 
-  // 검색어, 선택 날짜, 달력 토글 상태
+  // 토큰에서 User Table ID 추출
+  const decoded: TokenPayload = userToken ? jwtDecode(userToken) : { id: '', loginId: '', exp: 0, iat: 0 };
+  const userId = decoded.id;
+
   const [searchText, setSearchText] = useState('');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [calendarVisible, setCalendarVisible] = useState(false);
-
-  // 달력에 표시할 날짜 목록
   const [allDates, setAllDates] = useState<string[]>([]);
 
-  // 페이징 상태 및 조회된 일기들
   const ITEMS_PER_PAGE = 10;
   const [currentPage, setCurrentPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
 
-  /** 1) 달력에 표시할 날짜들(월별 조회) */
+  // AIResponseDto -> Post 변환
+  const mapToPost = (item: AIResponseDto): Post => ({
+    id: item.id,
+    title: item.diaryTitle,
+    date: item.createdAt.split('T')[0],
+  });
+
+  // 1) 달력에 표시할 날짜들
   useEffect(() => {
     const loadDates = async () => {
-      if (!user) return;
+      if (!userId) return;
       try {
-        // 1. 오늘 기준 YYYY-MM 생성
         const today = new Date();
         const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const payload: Record<string, any> = {
-          "month":`${year}-${month}`
-        };
-        const qs = toQueryString(payload);
-        // 2. backend: GET /api/diaryposts/calendar?month=YYYY-MM
+        const month = today.getMonth();
+        const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(
+          new Date(year, month + 1, 0).getDate()
+        ).padStart(2, '0')}`;
         const res = await fetchWithAuth(
-          `${BASIC_URL}/api/diaryposts/calendar?month=${qs}`
+          `${BASIC_URL}/api/diary/responses/${userId}/range?startDate=${startDate}&endDate=${endDate}`
         );
-        // 3. JSON 파싱
-        const calendar_json:DateData = await res.json() 
-        // 4. JSON의 status로 성공/실패 분기
-        if (calendar_json.status !== 'success' || !calendar_json.dates) {
-          Alert.alert('dlf 조회 실패', calendar_json.message);
-          return;
-        }
-        // 5. 정상 처리
-        setAllDates(calendar_json.dates);
+        const data: AIResponseDto[] = await res.json();
+        setAllDates(data.map(d => d.createdAt.split('T')[0]));
       } catch (e: any) {
-        // 네트워크 오류 등 예외 시 Alert 띄우기
         Alert.alert('달력 조회 중 오류', e.message || '알 수 없는 오류가 발생했습니다.');
-      }
-      try {
-        const payload: Record<string, any> = {
-          "page":0,
-          "size":10,
-          "sort":"createdAt,desc", 
-        };
-        const qs = toQueryString(payload);
-        const res = await fetchWithAuth(`${BASIC_URL}/api/diaries${qs}`)
-        const dairy_json: DairyData = await res.json();
-        if (dairy_json.status !== 'success' || !dairy_json.diaries) {
-          Alert.alert('일기 조회 실패', dairy_json.message);
-          return;
-        }
-        setFilteredPosts(dairy_json.diaries);
-        setTotalCount(dairy_json.totalCount);
-      } catch (e: any) {
-        Alert.alert('일기 조회 중 오류', e.message || '알 수 없는 오류가 발생했습니다.');
       }
     };
     loadDates();
-  }, [user]);
+  }, [userId]);
 
-  /** 2) 전체 조회 또는 검색어 조회 (page가 바뀔 때마다) */
+  // 2) 전체 또는 검색 조회 (클라이언트 사이드 페이징)
   const loadAllOrSearch = async (page: number) => {
-    if (!user) return;
+    if (!userId) return;
     try {
-      const payload: Record<string, any> = {
-        "q":searchText,
-        "page":page,
-        "size":10,
-        "sort":"createdAt,desc", 
-      };
-      const qs = toQueryString(payload);
-      const res = await fetchWithAuth(`${BASIC_URL}/api/diaries${qs}`)
-      const dairy_json: DairyData = await res.json();
-      if (dairy_json.status !== 'success' || !dairy_json.diaries) {
-        Alert.alert('일기 조회 실패', dairy_json.message);
-        return;
+      const res = await fetchWithAuth(
+        `${BASIC_URL}/api/diary/responses/${userId}`
+      );
+      let data: AIResponseDto[] = await res.json();
+      if (searchText) {
+        data = data.filter(d =>
+          d.diaryTitle.includes(searchText) || d.diaryContent.includes(searchText)
+        );
       }
-      setFilteredPosts(dairy_json.diaries);
-      setTotalCount(dairy_json.totalCount);
+      setTotalCount(data.length);
+      const pageItems = data.slice(
+        page * ITEMS_PER_PAGE,
+        (page + 1) * ITEMS_PER_PAGE
+      );
+      setFilteredPosts(pageItems.map(mapToPost));
     } catch (e: any) {
       Alert.alert('일기 조회 중 오류', e.message || '알 수 없는 오류가 발생했습니다.');
     }
   };
 
-  /** 3) 날짜 선택 시: 해당 날짜 일기만 조회 */
+  // 3) 날짜별 조회
   const loadByDate = async (date: string, page: number) => {
-    if (!user) return;
+    if (!userId) return;
     try {
-      const payload: Record<string, any> = {
-        date,
-        "page":page,
-        "size":10,
-        "sort":"createdAt,desc", 
-      };
-      const qs = toQueryString(payload);
-      const res = await fetchWithAuth(`${BASIC_URL}/api/diaries${qs}`)
-      const dairy_json: DairyData = await res.json();
-      if (dairy_json.status !== 'success' || !dairy_json.diaries) {
-        Alert.alert('일기 조회 실패', dairy_json.message);
-        return;
-      }
-      setFilteredPosts(dairy_json.diaries);
-      setTotalCount(dairy_json.totalCount);
+      const res = await fetchWithAuth(
+        `${BASIC_URL}/api/diary/responses/${userId}/range?startDate=${date}&endDate=${date}`
+      );
+      const data: AIResponseDto[] = await res.json();
+      setTotalCount(data.length);
+      const pageItems = data.slice(
+        page * ITEMS_PER_PAGE,
+        (page + 1) * ITEMS_PER_PAGE
+      );
+      setFilteredPosts(pageItems.map(mapToPost));
     } catch (e: any) {
       Alert.alert('일기 조회 중 오류', e.message || '알 수 없는 오류가 발생했습니다.');
     }
   };
 
-  /** 초기 로드: 전체(첫 페이지) */
+  // 초기 로드
   useEffect(() => {
     setSelectedDate(null);
     setCurrentPage(0);
     loadAllOrSearch(0);
-  }, [user]);
+  }, [userId]);
 
-  /** 페이지 변경 시 로직: 날짜 선택 모드 vs 검색/전체 모드 분기 */
+  // 페이지 변경 핸들러
   const goToPage = (page: number) => {
     setCurrentPage(page);
     if (selectedDate) {
@@ -178,7 +151,6 @@ export default function MainScreen({ navigation }: Props) {
     }
   };
 
-  /** 4) 날짜 선택 핸들러: 날짜를 선택하면 날짜별 조회 + 페이지 리셋 */
   const handleDateSelect = (date: string) => {
     Keyboard.dismiss();
     setSelectedDate(date);
@@ -187,7 +159,6 @@ export default function MainScreen({ navigation }: Props) {
     loadByDate(date, 0);
   };
 
-  /** 5) 검색 핸들러: 검색어 있으면 검색, 날짜 선택 해제, 페이지 리셋 */
   const handleSearch = () => {
     Keyboard.dismiss();
     setSelectedDate(null);
@@ -195,21 +166,18 @@ export default function MainScreen({ navigation }: Props) {
     loadAllOrSearch(0);
   };
 
-  /** 달력 UI에 표시할 markedDates 객체 생성 */
   const markedDates = useMemo(() => {
     const marks: { [key: string]: { marked: boolean } } = {};
-    allDates.forEach((date) => {
-      marks[date] = { marked: true };
+    allDates.forEach(d => {
+      marks[d] = { marked: true };
     });
     return marks;
   }, [allDates]);
 
-  /** 페이지 수 및 이전/다음 버튼 활성화 여부 */
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
   const hasPrev = currentPage > 0;
   const hasNext = currentPage < totalPages - 1;
 
-  /** FlatList 아이템 렌더러 */
   const renderPostItem = ({ item }: { item: Post }) => (
     <TouchableOpacity
       style={styles.postItem}
@@ -227,8 +195,6 @@ export default function MainScreen({ navigation }: Props) {
         style={styles.logo}
         resizeMode="cover"
       />
-
-      {/* 검색창 */}
       <TextInput
         style={styles.searchInput}
         placeholder="🔍 제목/내용 검색"
@@ -239,38 +205,27 @@ export default function MainScreen({ navigation }: Props) {
         onSubmitEditing={handleSearch}
         returnKeyType="search"
       />
-
-      {/* 달력 토글 버튼 */}
       <TouchableOpacity
         style={styles.toggleButton}
-        onPress={() => setCalendarVisible((prev) => !prev)}
+        onPress={() => setCalendarVisible(prev => !prev)}
       >
         <Text style={styles.toggleButtonText}>
           {calendarVisible ? '달력 숨기기' : '달력 보기'}
         </Text>
       </TouchableOpacity>
-
-      {/* 달력 (표시할 날짜는 markedDates로) */}
       {calendarVisible && (
         <View style={styles.calendarContainer}>
           <Text style={styles.sheetTitle}>📅 일기 달력</Text>
-          <Calendar
-            markedDates={markedDates}
-            onDayPress={(day) => handleDateSelect(day.dateString)}
-          />
+          <Calendar markedDates={markedDates} onDayPress={day => handleDateSelect(day.dateString)} />
         </View>
       )}
-
-      {/* 글 목록 (FlatList) */}
       <FlatList
         data={filteredPosts}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         renderItem={renderPostItem}
         showsVerticalScrollIndicator={false}
         style={{ flex: 1, marginBottom: 12 }}
       />
-
-      {/* 페이지 네비게이션 */}
       <View style={styles.paginationContainer}>
         <TouchableOpacity
           disabled={!hasPrev}
@@ -290,12 +245,7 @@ export default function MainScreen({ navigation }: Props) {
           <Text style={styles.pageButtonText}>{'다음 >'}</Text>
         </TouchableOpacity>
       </View>
-
-      {/* 새로운 일기 작성 버튼 (FAB) */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('Write')}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('Write')}>
         <Text style={styles.fabIcon}>+</Text>
       </TouchableOpacity>
     </View>
@@ -304,21 +254,7 @@ export default function MainScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 40, paddingHorizontal: 20 },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    letterSpacing: 1,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  logo: {
-    width: 180,
-    height: 90,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-
+  logo: { width: 180, height: 90, alignSelf: 'center', marginBottom: 20 },
   searchInput: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -333,10 +269,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  toggleButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
+  toggleButtonText: { fontSize: 16, fontWeight: '500' },
   postItem: {
     padding: 16,
     borderWidth: 1,
@@ -345,14 +278,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: '#f9f9f9',
   },
-  calendarContainer: {
-    marginBottom: 16,
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
+  calendarContainer: { marginBottom: 16 },
+  sheetTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -366,17 +293,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginHorizontal: 8,
   },
-  pageButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  pageButtonText: {
-    color: '#fff',
-    fontSize: 14,
-  },
-  pageIndicator: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
+  pageButtonDisabled: { backgroundColor: '#ccc' },
+  pageButtonText: { color: '#fff', fontSize: 14 },
+  pageIndicator: { fontSize: 16, fontWeight: '500' },
   fab: {
     position: 'absolute',
     right: 24,
@@ -393,10 +312,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
-  fabIcon: {
-    color: '#fff',
-    fontSize: 48,
-    textAlign: 'center',
-    lineHeight: 56,
-  },
+  fabIcon: { color: '#fff', fontSize: 48, textAlign: 'center', lineHeight: 56 },
 });
