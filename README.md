@@ -61,4 +61,6 @@ npx react-native start
 ```bash
 npx react-native run-android
 ```
+> ⚠️ API URL 및 키는 설정 필요
+
 
